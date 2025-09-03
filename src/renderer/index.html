@@ -8,45 +8,102 @@
 </head>
 <body>
   <div class="app" id="app">
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
       <div class="brand">
         <div class="logo">BT</div>
         <div class="brand-name">Estamparia ERP</div>
+        <button class="toggle-btn" id="btn-sidebar" title="Mostrar/ocultar menu">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
       </div>
 
       <nav class="nav">
-        <button class="nav-item" data-toggle="submenu-cadastrar">Cadastrar ▾</button>
-        <div id="submenu-cadastrar" class="submenu">
-          <a href="#/cadastro/produtos" class="submenu-link">Produtos</a>
-          <a href="#/cadastro/clientes" class="submenu-link">Clientes</a>
-          <a href="#/cadastro/servicos" class="submenu-link">Serviços</a>
+        <div class="nav-top">
+          <!-- Cadastrar -->
+          <button class="nav-item" data-toggle="submenu-cadastrar">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M12 5v14M5 12h14"/></svg>
+            <span class="label">Cadastrar</span><span class="caret">▾</span>
+          </button>
+          <div id="submenu-cadastrar" class="submenu">
+            <a href="#/cadastro/produtos" class="submenu-link">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M3 7h18M3 12h18M3 17h18"/></svg>
+              Produtos
+            </a>
+            <a href="#/cadastro/clientes" class="submenu-link">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M16 11c1.66 0 3-1.57 3-3.5S17.66 4 16 4 13 5.57 13 7.5 14.34 11 16 11zM8 11c1.66 0 3-1.57 3-3.5S9.66 4 8 4 5 5.57 5 7.5 6.34 11 8 11zm0 2c-2.33 0-7 1.17-7 3.5V20h14v-3.5C15 14.17 10.33 13 8 13zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.91 1.97 3.45V20h6v-3.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+              Clientes
+            </a>
+            <a href="#/cadastro/servicos" class="submenu-link">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M9.5 6.5l5 5-5 5M4 12h10"/></svg>
+              Serviços
+            </a>
+          </div>
+
+          <!-- Consultar -->
+          <button class="nav-item" data-toggle="submenu-consultar">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M10 6a4 4 0 104 4H10zM21 21l-4.35-4.35"/></svg>
+            <span class="label">Consultar</span><span class="caret">▾</span>
+          </button>
+          <div id="submenu-consultar" class="submenu">
+            <a href="#/consulta/produtos" class="submenu-link">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M3 7h18M3 12h18M3 17h18"/></svg>
+              Produtos
+            </a>
+            <a href="#/consulta/clientes" class="submenu-link">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M16 11c1.66 0 3-1.57 3-3.5S17.66 4 16 4 13 5.57 13 7.5 14.34 11 16 11zM8 11c1.66 0 3-1.57 3-3.5S9.66 4 8 4 5 5.57 5 7.5 6.34 11 8 11zm0 2c-2.33 0-7 1.17-7 3.5V20h14v-3.5C15 14.17 10.33 13 8 13zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.91 1.97 3.45V20h6v-3.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+              Clientes
+            </a>
+            <a href="#/consulta/servicos" class="submenu-link">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M9.5 6.5l5 5-5 5M4 12h10"/></svg>
+              Serviços
+            </a>
+          </div>
+
+          <a class="nav-item" href="#/relatorios">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M3 3h18v4H3zM7 7v14M12 7v14M17 7v14"/></svg>
+            <span class="label">Relatórios</span>
+          </a>
+          <a class="nav-item" href="#/">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M3 12l9-9 9 9v8a2 2 0 01-2 2h-4v-6H9v6H5a2 2 0 01-2-2z"/></svg>
+            <span class="label">Dashboard</span>
+          </a>
         </div>
 
-        <button class="nav-item" data-toggle="submenu-consultar">Consultar ▾</button>
-        <div id="submenu-consultar" class="submenu">
-          <a href="#/consulta/produtos" class="submenu-link">Produtos</a>
-          <a href="#/consulta/clientes" class="submenu-link">Clientes</a>
-          <a href="#/consulta/servicos" class="submenu-link">Serviços</a>
+        <!-- Rodapé do menu (sempre colado embaixo) -->
+        <div class="nav-bottom">
+          <a class="nav-item" href="#/configuracoes">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M12 15.5a3.5 3.5 0 100-7 3.5 3.5 0 000 7zM19.4 15a7.97 7.97 0 00.1-6l2-1-2-3-2 1a8.03 8.03 0 00-5-2l-1-2H9l-1 2a8.03 8.03 0 00-5 2l-2-1-2 3 2 1a7.97 7.97 0 000 6l-2 1 2 3 2-1a8.03 8.03 0 005 2l1 2h4l1-2a8.03 8.03 0 005-2l2 1 2-3-2-1z"/></svg>
+            <span class="label">Configurações</span>
+          </a>
+          <a class="nav-item" href="#/perfil">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M12 12a5 5 0 100-10 5 5 0 000 10zm-9 9v-1a7 7 0 0114 0v1z"/></svg>
+            <span class="label">Perfil</span>
+          </a>
         </div>
-
-        <a class="nav-item" href="#/relatorios">Relatórios</a>
-        <a class="nav-item" href="#/">Dashboard</a>
       </nav>
     </aside>
 
     <main class="content">
       <header class="topbar">
-        <button id="btn-toggle-sidebar" class="icon-btn" title="Mostrar/ocultar menu">☰</button>
         <h1 id="page-title">Dashboard</h1>
+        <div class="userbar">
+          <div class="avatar" id="user-avatar">O</div>
+          <div class="name" id="user-name">Operador</div>
+          <a href="#/perfil" id="link-perfil">Perfil</a>
+        </div>
       </header>
+
       <section id="view-root" class="view-root"></section>
+
+      <div class="footerbar">
+        <div id="footer-date">--/--/----</div>
+        <div id="footer-weekday">---</div>
+        <div id="footer-version">v0.0.0</div>
+      </div>
     </main>
   </div>
 
-  <!-- Utilitários (gráficos) -->
-  <script src="./charts.js"></script>
-
-  <!-- VIEWS (carregar ANTES do router) -->
+  <!-- Views -->
   <script src="./views/dashboard.js"></script>
   <script src="./views/cadastro-produtos.js"></script>
   <script src="./views/cadastro-clientes.js"></script>
@@ -55,8 +112,10 @@
   <script src="./views/consulta-clientes.js"></script>
   <script src="./views/consulta-servicos.js"></script>
   <script src="./views/relatorios.js"></script>
+  <script src="./views/configuracoes.js"></script>
+  <script src="./views/perfil.js"></script>
 
-  <!-- Router e lógica do menu (ordem IMPORTA) -->
+  <!-- Router + app -->
   <script src="./router.js"></script>
   <script src="./App.js"></script>
 </body>

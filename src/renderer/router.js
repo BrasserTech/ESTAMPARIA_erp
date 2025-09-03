@@ -1,4 +1,4 @@
-// Mapa hash -> nome da função de view (registrada no window)
+// src/renderer/router.js
 const ROUTE_MAP = {
   '#/': 'renderDashboard',
   '#/cadastro/produtos': 'renderCadastroProdutos',
@@ -7,13 +7,15 @@ const ROUTE_MAP = {
   '#/consulta/produtos': 'renderConsultaProdutos',
   '#/consulta/clientes': 'renderConsultaClientes',
   '#/consulta/servicos': 'renderConsultaServicos',
-  '#/relatorios': 'renderRelatorios'
+  '#/relatorios': 'renderRelatorios',
+  '#/configuracoes': 'renderConfiguracoes',
+  '#/perfil': 'renderPerfil' // NOVA
 };
 
 window.navigate = function (hash) {
   if (!hash) hash = '#/';
   if (location.hash !== hash) location.hash = hash;
-  else renderRoute(); // recarrega a mesma rota
+  else renderRoute();
 };
 
 function renderRoute() {
@@ -25,7 +27,6 @@ function renderRoute() {
   const fn = window[fnName];
 
   if (typeof fn !== 'function') {
-    console.error(`View não encontrada para ${hash} (${fnName})`);
     title.textContent = 'ERP';
     root.innerHTML = '<div class="card"><h3>Rota não encontrada</h3></div>';
     return;

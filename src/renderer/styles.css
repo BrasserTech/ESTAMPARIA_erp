@@ -1,55 +1,130 @@
-:root{
-  --bg: #f6f8fb;
-  --panel: #ffffff;
-  --text: #0f172a;
-  --border: #e6e9ef;
-  --shadow: 0 10px 28px rgba(16,24,40,.06);
-  --radius: 14px;
+/* ================== Base ================== */
+*{box-sizing:border-box}
+html,body,#app{height:100%}
+body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'Helvetica Neue',Arial,'Noto Sans',sans-serif;background:#f4f7fc;color:#0f2544}
 
-  --sb-bg: #1f3b86;
-  --sb-bg-2: #2a4aa2;
-  --sb-text: #ecf2ff;
-  --primary: #2f6fed;
+/* ================== Layout ================== */
+.app{
+  display:grid;
+  grid-template-columns:280px 1fr;        /* acompanha o estado do menu */
+  min-height:100vh;
+  transition:grid-template-columns .2s ease;
+}
+.app.collapsed{grid-template-columns:80px 1fr}
+
+.sidebar{
+  position:relative;                      /* permite footer fixo */
+  background:linear-gradient(180deg,#3b83ff 0%,#2f73f0 55%,#2765d6 100%);
+  color:#fff; display:flex; flex-direction:column; min-width:0;
+}
+.content{display:flex;flex-direction:column;min-height:100vh;background:#f5f8fe}
+
+/* ================== Topbar / Footer ================== */
+.topbar{
+  height:64px; display:flex; align-items:center; justify-content:space-between;
+  padding:0 20px; border-bottom:1px solid #e6eef9;
+  background:#ffffffcc; backdrop-filter:blur(6px); position:sticky; top:0; z-index:5
+}
+#page-title{font-size:20px;margin:0;color:#1d2a44}
+
+.userbar{display:flex;align-items:center;gap:10px}
+.userbar .avatar{width:32px;height:32px;border-radius:50%;background:#e9efff;color:#274aa6;display:flex;align-items:center;justify-content:center;font-weight:700}
+.userbar .name{font-weight:600;color:#25364f}
+.userbar a{color:#2b56d8;text-decoration:none;font-weight:600}
+.userbar a:hover{text-decoration:underline}
+
+.footerbar{height:36px;display:flex;align-items:center;justify-content:flex-end;gap:16px;padding:0 16px;border-top:1px solid #e6eef9;background:#fff;color:#54708b}
+
+/* ================== Views / Cards ================== */
+.view-root{flex:1;padding:20px}
+.card{background:#fff;border:1px solid #e8eef7;border-radius:14px;box-shadow:0 8px 18px rgba(21,78,210,.06);padding:18px}
+h3{margin:8px 0 12px}
+
+/* ================== Sidebar: brand/toggle ================== */
+.brand{display:flex;align-items:center;gap:10px;padding:16px 14px 10px}
+.brand .logo{width:36px;height:36px;border-radius:12px;background:#fff;color:#1d53c9;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,.12)}
+.brand .brand-name{font-weight:800}
+.brand .toggle-btn{margin-left:auto;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);color:#fff;border-radius:10px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.brand .toggle-btn:hover{background:rgba(255,255,255,.28)}
+.icon{width:18px;height:18px;display:block}
+
+/* ================== Navegação ================== */
+.nav{
+  padding:10px 12px 80px; /* espaço para o footer do menu */
+  overflow-y:auto;
+  display:flex; flex-direction:column; gap:12px;
+}
+.nav-top{display:flex;flex-direction:column;gap:12px}
+.nav-bottom{
+  position:absolute; left:12px; right:12px; bottom:12px;  /* literalmente no final */
+  display:flex; flex-direction:column; gap:12px;
 }
 
-*{ box-sizing: border-box; }
-html, body { height: 100%; margin: 0; font-family: Inter, system-ui, Arial; color: var(--text); }
-a { color: inherit; text-decoration: none; }
-
-.app { display: grid; grid-template-columns: 280px 1fr; height: 100vh; background: var(--bg); transition: grid-template-columns .25s ease; }
-.app.collapsed { grid-template-columns: 76px 1fr; }
-
-/* Sidebar */
-.sidebar {
-  background: linear-gradient(180deg, var(--sb-bg), var(--sb-bg-2));
-  color: var(--sb-text);
-  padding: 16px 12px; display: flex; flex-direction: column; gap: 10px;
-  overflow: hidden;
+.nav-item{
+  width:100%;
+  display:flex; align-items:center; gap:12px;
+  background:rgba(255,255,255,.14);
+  color:#ffffff;                                      /* texto branco */
+  border:1px solid rgba(255,255,255,.25);
+  border-radius:14px;
+  padding:14px 14px;
+  text-decoration:none; cursor:pointer;
+  transition:background .15s ease, transform .05s ease;
 }
-.brand { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
-.logo { width: 42px; height: 42px; border-radius: 12px; background: #fff; color: var(--sb-bg); display: grid; place-items: center; font-weight: 800; }
-.brand-name { font-weight: 700; white-space: nowrap; }
-.app.collapsed .brand-name { display: none; }
+.nav-item:hover{background:rgba(255,255,255,.20)}
+.nav-item:active{transform:scale(.995)}
+.nav-item .label{font-weight:700;color:#fff}          /* garante branco */
+.nav-item .caret{margin-left:auto;opacity:.92}
+.nav-item .icon{flex:0 0 18px}                        /* ícones alinhados */
 
-.nav { display: flex; flex-direction: column; gap: 6px; }
-.nav-item {
-  background: #ffffff10; border: 1px solid #ffffff20; color: #fff;
-  padding: 10px 12px; border-radius: 10px; cursor: pointer; text-align: left;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+/* -------- Submenus (expandido) -------- */
+.submenu{margin:6px 0 6px 34px;border-left:2px dashed rgba(255,255,255,.25);padding-left:12px;display:none}
+.submenu.open{display:block}
+.submenu-link{display:flex;align-items:center;gap:8px;color:#eef4ff;text-decoration:none;padding:10px 8px;border-radius:10px;margin:6px 0}
+.submenu-link:hover{background:rgba(255,255,255,.16)}
+.submenu-link .icon{width:16px;height:16px}
+
+/* ======= Estado recolhido ======= */
+.app.collapsed .sidebar .brand .logo,
+.app.collapsed .sidebar .brand .brand-name{display:none}
+.app.collapsed .nav-item{justify-content:center;padding:14px}
+.app.collapsed .nav-item .label,
+.app.collapsed .nav-item .caret{display:none}
+.app.collapsed .submenu{display:none !important}
+
+/* ======= Flyout de submenu no modo recolhido ======= */
+.flyout{
+  position:fixed; left:80px;
+  min-width:240px; background:#2f73f0; color:#fff;
+  border:1px solid rgba(255,255,255,.25); border-radius:12px; padding:8px;
+  box-shadow:0 10px 24px rgba(22,57,145,.25); z-index:20; display:none;
 }
-.nav-item:hover { background: #ffffff25; }
+.flyout.open{display:block}
+.flyout a{display:flex;align-items:center;gap:10px;color:#fff;text-decoration:none;padding:10px;border-radius:10px}
+.flyout a:hover{background:rgba(255,255,255,.14)}
+.flyout .icon{width:16px;height:16px}
 
-.submenu { display: none; padding-left: 8px; }
-.submenu-link { display: block; padding: 8px 10px; border-radius: 8px; color: #e8efff; }
-.submenu-link:hover { background: #ffffff22; }
-.app.collapsed .submenu { display: none !important; }
+/* ================== Form / Inputs ================== */
+.button{background:#1f5fe0;color:#fff;border:none;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer}
+.button:hover{filter:brightness(.97)}
+.button.outline{background:transparent;color:#1f5fe0;border:1px solid #b7c7f5}
+.input,.select,.textarea{width:100%;padding:10px 12px;border:1px solid #d8e1ef;border-radius:10px;background:#fff}
+.input:focus,.select:focus,.textarea:focus{outline:none;border-color:#7aa6ff;box-shadow:0 0 0 3px rgba(60,120,240,.14)}
+.form{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.form .full{grid-column:1/-1}
+.label{font-size:12px;color:#435b71;margin-bottom:6px;display:block}
+.actions{display:flex;gap:10px}
 
-/* Conteúdo */
-.content { padding: 18px 22px; }
-.topbar { display: grid; grid-template-columns: 40px 1fr; align-items: center; margin-bottom: 14px; }
-#page-title { margin: 0; font-size: 22px; }
-.icon-btn { width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel); box-shadow: var(--shadow); cursor: pointer; font-size: 18px; }
+/* ================== Datagrid (consulta produtos) ================== */
+.datagrid{display:grid;grid-template-rows:auto;gap:10px}
+.dg-row{
+  display:grid; grid-template-columns: 130px 1fr 160px 90px 130px 90px 150px;
+  align-items:center;
+  background:#fff; border:1px solid #e6ecf5; border-radius:12px; padding:12px 10px;
+}
+.dg-head{background:#f3f7ff;border-color:#dfe9ff;font-weight:700;color:#0f2544}
+.dg-cell{padding:4px 8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 
-.view-root { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
-
-.card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
+/* ================== Toast ================== */
+.toast{position:fixed;right:20px;bottom:20px;background:#0f9d58;color:#fff;padding:12px 14px;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.15);z-index:100}
+.toast.err{background:#d93025}
