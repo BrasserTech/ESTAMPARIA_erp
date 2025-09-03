@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <title>ERP Estamparia</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app" id="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo">BT</div>
+        <div class="brand-name">Estamparia ERP</div>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-item" data-toggle="submenu-cadastrar">Cadastrar ▾</button>
+        <div id="submenu-cadastrar" class="submenu">
+          <a href="#/cadastro/produtos" class="submenu-link">Produtos</a>
+          <a href="#/cadastro/clientes" class="submenu-link">Clientes</a>
+          <a href="#/cadastro/servicos" class="submenu-link">Serviços</a>
+        </div>
+
+        <button class="nav-item" data-toggle="submenu-consultar">Consultar ▾</button>
+        <div id="submenu-consultar" class="submenu">
+          <a href="#/consulta/produtos" class="submenu-link">Produtos</a>
+          <a href="#/consulta/clientes" class="submenu-link">Clientes</a>
+          <a href="#/consulta/servicos" class="submenu-link">Serviços</a>
+        </div>
+
+        <a class="nav-item" href="#/relatorios">Relatórios</a>
+        <a class="nav-item" href="#/">Dashboard</a>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <header class="topbar">
+        <button id="btn-toggle-sidebar" class="icon-btn" title="Mostrar/ocultar menu">☰</button>
+        <h1 id="page-title">Dashboard</h1>
+      </header>
+      <section id="view-root" class="view-root"></section>
+    </main>
+  </div>
+
+  <!-- Utilitários (gráficos) -->
+  <script src="./charts.js"></script>
+
+  <!-- VIEWS (carregar ANTES do router) -->
+  <script src="./views/dashboard.js"></script>
+  <script src="./views/cadastro-produtos.js"></script>
+  <script src="./views/cadastro-clientes.js"></script>
+  <script src="./views/cadastro-servicos.js"></script>
+  <script src="./views/consulta-produtos.js"></script>
+  <script src="./views/consulta-clientes.js"></script>
+  <script src="./views/consulta-servicos.js"></script>
+  <script src="./views/relatorios.js"></script>
+
+  <!-- Router e lógica do menu (ordem IMPORTA) -->
+  <script src="./router.js"></script>
+  <script src="./App.js"></script>
+</body>
+</html>

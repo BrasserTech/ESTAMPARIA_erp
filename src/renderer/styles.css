@@ -1,0 +1,55 @@
+:root{
+  --bg: #f6f8fb;
+  --panel: #ffffff;
+  --text: #0f172a;
+  --border: #e6e9ef;
+  --shadow: 0 10px 28px rgba(16,24,40,.06);
+  --radius: 14px;
+
+  --sb-bg: #1f3b86;
+  --sb-bg-2: #2a4aa2;
+  --sb-text: #ecf2ff;
+  --primary: #2f6fed;
+}
+
+*{ box-sizing: border-box; }
+html, body { height: 100%; margin: 0; font-family: Inter, system-ui, Arial; color: var(--text); }
+a { color: inherit; text-decoration: none; }
+
+.app { display: grid; grid-template-columns: 280px 1fr; height: 100vh; background: var(--bg); transition: grid-template-columns .25s ease; }
+.app.collapsed { grid-template-columns: 76px 1fr; }
+
+/* Sidebar */
+.sidebar {
+  background: linear-gradient(180deg, var(--sb-bg), var(--sb-bg-2));
+  color: var(--sb-text);
+  padding: 16px 12px; display: flex; flex-direction: column; gap: 10px;
+  overflow: hidden;
+}
+.brand { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.logo { width: 42px; height: 42px; border-radius: 12px; background: #fff; color: var(--sb-bg); display: grid; place-items: center; font-weight: 800; }
+.brand-name { font-weight: 700; white-space: nowrap; }
+.app.collapsed .brand-name { display: none; }
+
+.nav { display: flex; flex-direction: column; gap: 6px; }
+.nav-item {
+  background: #ffffff10; border: 1px solid #ffffff20; color: #fff;
+  padding: 10px 12px; border-radius: 10px; cursor: pointer; text-align: left;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.nav-item:hover { background: #ffffff25; }
+
+.submenu { display: none; padding-left: 8px; }
+.submenu-link { display: block; padding: 8px 10px; border-radius: 8px; color: #e8efff; }
+.submenu-link:hover { background: #ffffff22; }
+.app.collapsed .submenu { display: none !important; }
+
+/* Conteúdo */
+.content { padding: 18px 22px; }
+.topbar { display: grid; grid-template-columns: 40px 1fr; align-items: center; margin-bottom: 14px; }
+#page-title { margin: 0; font-size: 22px; }
+.icon-btn { width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel); box-shadow: var(--shadow); cursor: pointer; font-size: 18px; }
+
+.view-root { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
+
+.card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
