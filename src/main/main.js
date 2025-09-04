@@ -58,7 +58,7 @@ ipcMain.handle('db:init', async () => {
 });
 
 /* ===================================================================
-   PRODUTOS (novo schema: produtos)
+   PRODUTOS
    =================================================================== */
 ipcMain.handle('produtos:listar', async (_e, filtro) => {
   const params = [];
@@ -107,8 +107,16 @@ ipcMain.handle('produtos:criar', async (_e, p) => {
   return rows[0];
 });
 
+// Exclusão de produtos (usado na consulta)
+ipcMain.handle('produtos:excluir', async (_e, where) => {
+  if (where?.chave)         await db.query('DELETE FROM produtos WHERE chave = $1', [where.chave]);
+  else if (where?.codigo)   await db.query('DELETE FROM produtos WHERE codigo = $1', [where.codigo]);
+  else throw new Error('Parâmetro de exclusão ausente');
+  return { ok: true };
+});
+
 /* ===================================================================
-   SERVIÇOS (novo schema: servicos)
+   SERVIÇOS
    =================================================================== */
 ipcMain.handle('servicos:listar', async (_e, filtro) => {
   const params = [];
@@ -118,7 +126,8 @@ ipcMain.handle('servicos:listar', async (_e, filtro) => {
     where = `WHERE (s.nome ILIKE $1 OR CAST(s.codigo AS TEXT) ILIKE $1)`;
   }
   const { rows } = await db.query(
-    `SELECT s.chave, s.codigo, s.nome, s.valorvenda, s.chaveemp, s.obs, s.categoria, s.validade, s.prazoentrega,
+    `SELECT s.chave, s.codigo, s.nome, s.valorvenda, s.chaveemp, s.obs,
+            s.categoria, s.validade, s.prazoentrega,
             s.datahoracad, s.datahoraalt
        FROM servicos s
      ${where}
@@ -152,10 +161,8 @@ ipcMain.handle('servicos:criar', async (_e, s) => {
 });
 
 /* ===================================================================
-   CLIENTES (novo schema: clifor)
+   CLIENTES (CLIFOR)
    =================================================================== */
-
-/** Lista (filtra por nome, código ou CPF/CNPJ) */
 ipcMain.handle('clientes:listar', async (_e, filtro) => {
   const params = [];
   let where = '';
@@ -174,7 +181,6 @@ ipcMain.handle('clientes:listar', async (_e, filtro) => {
   return rows;
 });
 
-/** Cria registro em clifor (ativo default 1, codigo auto) */
 ipcMain.handle('clientes:criar', async (_e, c) => {
   const { nome, fisjur, tipo, pertenceemp, email, cpf, telefone, endereco } = c || {};
   if (!nome || String(nome).trim() === '') throw new Error('Nome é obrigatório.');
@@ -197,6 +203,172 @@ ipcMain.handle('clientes:criar', async (_e, c) => {
 
   const { rows } = await db.query(sql, params);
   return rows[0];
+});
+
+/* ===================================================================
+   LOOKUP / PESQUISA GENÉRICA (F8 / Lupa)
+   =================================================================== */
+ipcMain.handle('lookup:search', async (_e, { source, term, limit = 50 } = {}) => {
+  const q = `%${String(term || '').trim()}%`;
+  const lim = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+
+  if (!['empresa', 'produtos', 'servicos', 'clifor'].includes(source))
+    throw new Error('Fonte de pesquisa não permitida.');
+
+  let sql, params = [q, q, lim];
+
+  switch (source) {
+    case 'empresa':
+      sql = `
+        SELECT chave, codigo, nome
+          FROM empresa
+         WHERE (nome ILIKE $1 OR CAST(codigo AS TEXT) ILIKE $2)
+         ORDER BY nome
+         LIMIT $3`;
+      break;
+    case 'produtos':
+      sql = `
+        SELECT chave, codigo, nome
+          FROM produtos
+         WHERE (nome ILIKE $1 OR CAST(codigo AS TEXT) ILIKE $2)
+         ORDER BY nome
+         LIMIT $3`;
+      break;
+    case 'servicos':
+      sql = `
+        SELECT chave, codigo, nome
+          FROM servicos
+         WHERE (nome ILIKE $1 OR CAST(codigo AS TEXT) ILIKE $2)
+         ORDER BY nome
+         LIMIT $3`;
+      break;
+    case 'clifor':
+      sql = `
+        SELECT chave, codigo, nome
+          FROM clifor
+         WHERE (nome ILIKE $1 OR CAST(codigo AS TEXT) ILIKE $2)
+         ORDER BY nome
+         LIMIT $3`;
+      break;
+  }
+
+  const { rows } = await db.query(sql, params);
+  return rows;
+});
+
+/* ===================================================================
+   DASHBOARD  (ajustado ao seu schema)
+   =================================================================== */
+
+// Entradas × Saídas por mês + totais do período
+ipcMain.handle('dashboard:kpis', async (_e, { meses = 6 } = {}) => {
+  const months = Math.max(1, parseInt(meses, 10) || 6);
+
+  const { rows: rNow } = await db.query('SELECT NOW() AS now');
+  const now = new Date(rNow[0].now);
+  const start = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
+
+  // ENTRADAS: usa datahoracad e total
+  const { rows: ent } = await db.query(
+    `SELECT to_char(date_trunc('month', e.datahoracad), 'YYYY-MM') AS ym,
+            SUM(COALESCE(e.total,0)) AS total
+       FROM entradas e
+      WHERE e.datahoracad >= $1
+   GROUP BY 1
+   ORDER BY 1`,
+    [start]
+  );
+
+  // SAIDAS: usa datahoracad e total
+  const { rows: sai } = await db.query(
+    `SELECT to_char(date_trunc('month', s.datahoracad), 'YYYY-MM') AS ym,
+            SUM(COALESCE(s.total,0)) AS total
+       FROM saidas s
+      WHERE s.datahoracad >= $1
+   GROUP BY 1
+   ORDER BY 1`,
+    [start]
+  );
+
+  const labels = [];
+  {
+    const m = new Date(start);
+    for (let i = 0; i < months; i++) {
+      labels.push(`${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, '0')}`);
+      m.setMonth(m.getMonth() + 1);
+    }
+  }
+
+  const mapEnt = Object.fromEntries(ent.map(r => [r.ym, Number(r.total)]));
+  const mapSai = Object.fromEntries(sai.map(r => [r.ym, Number(r.total)]));
+  const entradas = labels.map(l => mapEnt[l] || 0);
+  const saidas   = labels.map(l => mapSai[l] || 0);
+
+  return {
+    labels,
+    entradas,
+    saidas,
+    totalEntradas: entradas.reduce((a,b)=>a+b,0),
+    totalSaidas:   saidas.reduce((a,b)=>a+b,0),
+  };
+});
+
+// Top 5 clientes por faturamento (SAIDAS.x CLIFOR)
+ipcMain.handle('dashboard:topclientes', async (_e, { meses = 6 } = {}) => {
+  const months = Math.max(1, parseInt(meses, 10) || 6);
+
+  const { rows: rNow } = await db.query('SELECT NOW() AS now');
+  const now = new Date(rNow[0].now);
+  const start = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
+
+  const { rows } = await db.query(
+    `SELECT COALESCE(c.nome,'(Sem cliente)') AS nome,
+            SUM(COALESCE(s.total,0)) AS total
+       FROM saidas s
+  LEFT JOIN clifor c ON c.chave = s.chaveclifor
+      WHERE s.datahoracad >= $1
+   GROUP BY 1
+   ORDER BY total DESC NULLS LAST
+      LIMIT 5`,
+    [start]
+  );
+
+  return {
+    labels: rows.map(r => r.nome),
+    values: rows.map(r => Number(r.total || 0)),
+  };
+});
+
+// Mix Produtos × Serviços (por quantidade de itens, pois os itens não têm preço/qtde no schema atual)
+ipcMain.handle('dashboard:mix', async (_e, { meses = 6 } = {}) => {
+  const months = Math.max(1, parseInt(meses, 10) || 6);
+
+  const { rows: rNow } = await db.query('SELECT NOW() AS now');
+  const now = new Date(rNow[0].now);
+  const start = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
+
+  // Produtos: conta itens de saída de produto no período
+  const { rows: rp } = await db.query(
+    `SELECT COUNT(*)::int AS qtd
+       FROM itemsaidaprod ip
+       JOIN saidas s ON s.chave = ip.chavesaida
+      WHERE s.datahoracad >= $1`,
+    [start]
+  );
+
+  // Serviços: conta itens de saída de serviço no período
+  const { rows: rs } = await db.query(
+    `SELECT COUNT(*)::int AS qtd
+       FROM itemsaidaserv isv
+       JOIN saidas s ON s.chave = isv.chavesaida
+      WHERE s.datahoracad >= $1`,
+    [start]
+  );
+
+  return {
+    produtos: Number(rp[0]?.qtd || 0),
+    servicos: Number(rs[0]?.qtd || 0),
+  };
 });
 
 /* ===========================================================

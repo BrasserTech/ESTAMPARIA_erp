@@ -1,79 +1,125 @@
-// Barras simples
-window.drawBarChart = function(canvas, labels, values) {
+// ===== Canvas helpers simples para os gráficos do ERP =====
+
+// Barras AGRUPADAS (duas séries lado a lado)
+window.drawGroupedBars = function (canvas, labels, serieA, serieB) {
   const ctx = canvas.getContext('2d');
-  const w = canvas.width = canvas.clientWidth;
-  const h = canvas.height = canvas.clientHeight;
-  ctx.clearRect(0,0,w,h);
+  const w = (canvas.width = canvas.clientWidth);
+  const h = (canvas.height = canvas.clientHeight);
+  ctx.clearRect(0, 0, w, h);
 
-  const max = Math.max(...values) * 1.2 || 1;
-  const pad = 28;
-  const gw = w - pad*2;
-  const gh = h - pad*2;
-  const bw = gw / values.length * 0.6;
-  const gap = (gw / values.length) - bw;
+  const max = Math.max(1, ...labels.map((_, i) => (serieA[i] || 0) + (serieB[i] || 0), ...serieA, ...serieB)) * 1.15;
 
-  ctx.fillStyle = '#6b7280';
-  ctx.textAlign = 'center';
+  const padL = 40, padR = 10, padT = 10, padB = 28;
+  const gw = w - padL - padR;
+  const gh = h - padT - padB;
+
+  const n = Math.max(1, labels.length);
+  const groupW = gw / n;
+  const barW = groupW * 0.32; // largura de cada barra (2 por grupo)
+  const gapBars = groupW * 0.06; // separação entre as duas barras do grupo
+
   ctx.font = '12px Inter, system-ui';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#64748b';
 
-  values.forEach((v, i) => {
-    const x = pad + i*(bw+gap) + gap/2;
-    const barH = (v / max) * gh;
-    const y = h - pad - barH;
-
-    // barra
-    const grad = ctx.createLinearGradient(0, y, 0, y+barH);
-    grad.addColorStop(0, '#3b82f6');   // topo
-    grad.addColorStop(1, '#2f6fed');   // base
-    ctx.fillStyle = grad;
-    ctx.fillRect(x, y, bw, barH);
-
-    // rótulo
-    ctx.fillStyle = '#475569';
-    ctx.fillText(labels[i], x + bw/2, h - pad + 14);
+  // rótulos do eixo X
+  labels.forEach((lb, i) => {
+    const x = padL + i * groupW + groupW / 2;
+    ctx.fillText(lb, x, h - 8);
   });
+
+  function bar(xCenter, value, gradTop, gradBottom) {
+    const v = Math.max(0, Number(value || 0));
+    const barH = (v / max) * gh;
+    const x = xCenter - barW / 2;
+    const y = h - padB - barH;
+
+    const g = ctx.createLinearGradient(0, y, 0, y + barH);
+    g.addColorStop(0, gradTop);
+    g.addColorStop(1, gradBottom);
+    ctx.fillStyle = g;
+    ctx.fillRect(x, y, barW, barH);
+  }
+
+  for (let i = 0; i < n; i++) {
+    const base = padL + i * groupW + groupW / 2;
+    // Entradas (azul) fica à esquerda do grupo
+    bar(base - (barW / 2 + gapBars), serieA[i], '#3b82f6', '#2f6fed');
+    // Saídas (verde) à direita
+    bar(base + (barW / 2 + gapBars), serieB[i], '#22c55e', '#16a34a');
+  }
 };
 
-// Rosca simples
-window.drawDonutChart = function(canvas, labels, values) {
+// Barras horizontais (Top 5)
+window.drawHBarChart = function (canvas, labels, values) {
   const ctx = canvas.getContext('2d');
-  const w = canvas.width = canvas.clientWidth;
-  const h = canvas.height = canvas.clientHeight;
-  ctx.clearRect(0,0,w,h);
+  const w = (canvas.width = canvas.clientWidth);
+  const h = (canvas.height = canvas.clientHeight);
+  ctx.clearRect(0, 0, w, h);
 
-  const total = values.reduce((a,b)=>a+b,0) || 1;
-  const cx = w/2, cy = h/2;
-  const r = Math.min(w,h)/2 - 10;
-  const inner = r*0.6;
+  const padL = 140, padR = 16, padT = 10, padB = 10;
+  const gw = w - padL - padR;
+  const gh = h - padT - padB;
 
-  const palette = ['#2f6fed','#60a5fa','#93c5fd','#bfdbfe','#3b82f6','#1d4ed8'];
+  const n = Math.max(1, labels.length);
+  const row = gh / n;
+  const barH = row * 0.58;
+  const gap = row - barH;
 
-  let start = -Math.PI/2;
+  const max = Math.max(1, ...values);
+
+  ctx.font = '12px Inter, system-ui';
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#334155';
+
+  for (let i = 0; i < n; i++) {
+    const y = padT + i * (barH + gap);
+    const lblY = y + barH * 0.75;
+    ctx.fillText(labels[i] ?? '', padL - 8, lblY);
+
+    const vw = (Number(values[i] || 0) / max) * gw;
+    const g = ctx.createLinearGradient(padL, y, padL + vw, y);
+    g.addColorStop(0, '#93c5fd');
+    g.addColorStop(1, '#3b82f6');
+
+    ctx.fillStyle = g;
+    ctx.fillRect(padL, y, vw, barH);
+  }
+};
+
+// Rosca (donut) para composição Produtos × Serviços
+window.drawDonutChart = function (canvas, labels, values) {
+  const ctx = canvas.getContext('2d');
+  const w = (canvas.width = canvas.clientWidth);
+  const h = (canvas.height = canvas.clientHeight);
+  ctx.clearRect(0, 0, w, h);
+
+  const total = values.reduce((a, b) => a + (Number(b) || 0), 0) || 1;
+  const cx = w / 2,
+    cy = h / 2;
+  const r = Math.min(w, h) / 2 - 8;
+  const inner = r * 0.60;
+
+  const palette = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#6366f1'];
+
+  let start = -Math.PI / 2;
   values.forEach((v, i) => {
-    const ang = (v/total) * Math.PI*2;
+    const ang = ((Number(v) || 0) / total) * Math.PI * 2;
     ctx.beginPath();
     ctx.moveTo(cx, cy);
-    ctx.arc(cx, cy, r, start, start+ang);
+    ctx.arc(cx, cy, r, start, start + ang);
     ctx.closePath();
     ctx.fillStyle = palette[i % palette.length];
     ctx.fill();
-
     start += ang;
   });
 
   // “furo”
   ctx.globalCompositeOperation = 'destination-out';
-  ctx.beginPath(); ctx.arc(cx, cy, inner, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath();
+  ctx.arc(cx, cy, inner, 0, Math.PI * 2);
+  ctx.fill();
   ctx.globalCompositeOperation = 'source-over';
 
-  // legenda
-  ctx.font = '12px Inter, system-ui'; ctx.fillStyle = '#334155';
-  let ly = 16;
-  labels.forEach((lb, i) => {
-    ctx.fillStyle = palette[i % palette.length];
-    ctx.fillRect(10, ly-9, 10, 10);
-    ctx.fillStyle = '#334155';
-    ctx.fillText(`${lb} (${values[i]})`, 26, ly);
-    ly += 16;
-  });
+  // legenda (opcional — normalmente faremos fora do canvas)
 };
