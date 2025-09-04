@@ -4,7 +4,7 @@ require('dotenv').config();
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const db = require('../database/index.js');
+const db = require('../database'); // ../database/index.js
 
 let mainWindow;
 
@@ -14,7 +14,7 @@ function createWindow() {
     height: 800,
     title: 'ERP Estamparia',
     webPreferences: {
-      nodeIntegration: true,   // MVP. Em produção: preload + contextIsolation.
+      nodeIntegration: true,
       contextIsolation: false
     }
   });
@@ -27,15 +27,14 @@ app.on('ready', createWindow);
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 app.on('activate', () => { if (mainWindow === null) createWindow(); });
 
-/* ====== Info do app/usuário (para topbar/footer/perfil) ====== */
+/* ====== Info do app/usuário ====== */
 ipcMain.handle('app:info', async () => {
-  // Você pode definir APP_USER e APP_USER_EMAIL no .env se quiser
   const user = process.env.APP_USER || 'Operador';
   const email = process.env.APP_USER_EMAIL || '';
   return { version: app.getVersion(), user, user_email: email };
 });
 
-/* ================== DB utils ================== */
+/* ====== DB utils ====== */
 ipcMain.handle('db:info', async () => {
   const {
     DB_HOST = '127.0.0.1',
@@ -58,156 +57,154 @@ ipcMain.handle('db:init', async () => {
   return { ok: true };
 });
 
-/* ============== IPC exemplos já existentes (opcional) ============== */
-/* Produtos */
+/* ===================================================================
+   PRODUTOS (novo schema: produtos)
+   =================================================================== */
 ipcMain.handle('produtos:listar', async (_e, filtro) => {
-  const where = filtro ? `WHERE nome ILIKE $1 OR sku ILIKE $1` : '';
-  const params = filtro ? [`%${filtro}%`] : [];
-  const { rows } = await db.query(`SELECT * FROM produtos ${where} ORDER BY created_at DESC`, params);
+  const params = [];
+  let where = '';
+  if (filtro) {
+    params.push(`%${filtro}%`);
+    where = `WHERE (p.nome ILIKE $1 OR CAST(p.codigo AS TEXT) ILIKE $1)`;
+  }
+  const { rows } = await db.query(
+    `SELECT p.chave, p.codigo, p.nome, p.valorcompra, p.valorvenda,
+            p.categoria, p.validade, p.chaveemp, p.obs,
+            p.datahoracad, p.datahoraalt
+       FROM produtos p
+     ${where}
+     ORDER BY p.datahoracad DESC`,
+    params
+  );
   return rows;
 });
 
 ipcMain.handle('produtos:criar', async (_e, p) => {
-  const { sku, nome, descricao, categoria, unidade, validade, preco_custo, preco_venda, estoque_minimo } = p;
-  await db.query(
-    `INSERT INTO produtos (sku, nome, descricao, categoria, unidade, validade, preco_custo, preco_venda, estoque_minimo)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-    [sku, nome, descricao || null, categoria || null, unidade || 'UN', validade || null,
-     preco_custo ?? 0, preco_venda ?? 0, estoque_minimo ?? 0]
-  );
-  return { ok: true };
+  const { nome, valorcompra, valorvenda, chaveemp, validade, obs, categoria } = p || {};
+  if (!nome || String(nome).trim() === '') throw new Error('Nome é obrigatório.');
+
+  const vcomp = Number(valorcompra) || 0;
+  const vv = (valorvenda === null || valorvenda === undefined || isNaN(Number(valorvenda)))
+    ? vcomp
+    : Number(valorvenda);
+
+  const sql = `
+    INSERT INTO produtos (ativo, nome, valorcompra, valorvenda, chaveemp, obs, categoria, validade)
+    VALUES (1, $1, $2, $3, $4, $5, COALESCE($6, 1), $7)
+    RETURNING chave, codigo
+  `;
+  const params = [
+    String(nome).trim(),
+    vcomp,
+    vv,
+    (chaveemp ? Number(chaveemp) : null),
+    (obs ? String(obs).trim() : null),
+    (categoria ? Number(categoria) : 1),
+    (validade || null)
+  ];
+
+  const { rows } = await db.query(sql, params);
+  return rows[0];
 });
 
-/* Clientes */
-ipcMain.handle('clientes:listar', async (_e, filtro) => {
-  const where = filtro ? `WHERE nome ILIKE $1 OR documento ILIKE $1` : '';
-  const params = filtro ? [`%${filtro}%`] : [];
-  const { rows } = await db.query(`SELECT * FROM clientes ${where} ORDER BY created_at DESC`, params);
-  return rows;
-});
-
-ipcMain.handle('clientes:criar', async (_e, c) => {
-  const { nome, documento, email, telefone, endereco } = c;
-  await db.query(
-    `INSERT INTO clientes (nome, documento, email, telefone, endereco)
-     VALUES ($1,$2,$3,$4,$5)`,
-    [nome, documento || null, email || null, telefone || null, endereco || null]
-  );
-  return { ok: true };
-});
-
-/* Serviços */
+/* ===================================================================
+   SERVIÇOS (novo schema: servicos)
+   =================================================================== */
 ipcMain.handle('servicos:listar', async (_e, filtro) => {
-  const where = filtro ? `WHERE descricao ILIKE $1 OR codigo ILIKE $1` : '';
-  const params = filtro ? [`%${filtro}%`] : [];
-  const { rows } = await db.query(`SELECT * FROM servicos ${where} ORDER BY created_at DESC`, params);
+  const params = [];
+  let where = '';
+  if (filtro) {
+    params.push(`%${filtro}%`);
+    where = `WHERE (s.nome ILIKE $1 OR CAST(s.codigo AS TEXT) ILIKE $1)`;
+  }
+  const { rows } = await db.query(
+    `SELECT s.chave, s.codigo, s.nome, s.valorvenda, s.chaveemp, s.obs, s.categoria, s.validade, s.prazoentrega,
+            s.datahoracad, s.datahoraalt
+       FROM servicos s
+     ${where}
+     ORDER BY s.datahoracad DESC`,
+    params
+  );
   return rows;
 });
 
 ipcMain.handle('servicos:criar', async (_e, s) => {
-  const { codigo, tipo, descricao, valor, quantidade_padrao, prazo_dias } = s;
-  await db.query(
-    `INSERT INTO servicos (codigo, tipo, descricao, valor, quantidade_padrao, prazo_dias)
-     VALUES ($1,$2,$3,$4,$5,$6)`,
-    [codigo, tipo || null, descricao, valor ?? 0, quantidade_padrao ?? 1, prazo_dias || null]
-  );
-  return { ok: true };
+  const { nome, valorvenda, chaveemp, obs, categoria, validade, prazoentrega } = s || {};
+  if (!nome || String(nome).trim() === '') throw new Error('Nome é obrigatório.');
+
+  const sql = `
+    INSERT INTO servicos (ativo, nome, valorvenda, chaveemp, obs, categoria, validade, prazoentrega)
+    VALUES (1, $1, $2, $3, $4, COALESCE($5,1), $6, $7)
+    RETURNING chave, codigo
+  `;
+  const params = [
+    String(nome).trim(),
+    Number(valorvenda) || 0,
+    (chaveemp ? Number(chaveemp) : null),
+    (obs ? String(obs).trim() : null),
+    (categoria ? Number(categoria) : 1),
+    (validade || null),
+    (prazoentrega || null)
+  ];
+
+  const { rows } = await db.query(sql, params);
+  return rows[0];
 });
 
-/* Saídas (vendas) — cabeçalho + itens */
-ipcMain.handle('saidas:criar', async (_e, saida) => {
-  const { cliente_id, observacao, itens } = saida; // itens: [{produto_id?, servico_id?, qtde, preco_unit}]
-  const client = await db.pool.connect();
-  try {
-    await client.query('BEGIN');
-    const { rows } = await client.query(
-      `INSERT INTO saidas (cliente_id, observacao) VALUES ($1,$2) RETURNING id, numero`,
-      [cliente_id || null, observacao || null]
-    );
-    const saidaId = rows[0].id;
+/* ===================================================================
+   CLIENTES (novo schema: clifor)
+   =================================================================== */
 
-    for (const it of itens || []) {
-      await client.query(
-        `INSERT INTO saida_itens (saida_id, produto_id, servico_id, qtde, preco_unit)
-         VALUES ($1,$2,$3,$4,$5)`,
-        [saidaId, it.produto_id || null, it.servico_id || null, it.qtde || 1, it.preco_unit || 0]
-      );
-    }
-
-    await client.query('COMMIT');
-    return { ok: true, id: saidaId, numero: rows[0].numero };
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
-  }
-});
-
-ipcMain.handle('saidas:listar', async (_e, { de, ate, cliente }) => {
+/** Lista (filtra por nome, código ou CPF/CNPJ) */
+ipcMain.handle('clientes:listar', async (_e, filtro) => {
   const params = [];
-  const conds = [];
-  if (de)      { params.push(de);      conds.push(`s.data_venda::date >= $${params.length}`); }
-  if (ate)     { params.push(ate);     conds.push(`s.data_venda::date <= $${params.length}`); }
-  if (cliente) { params.push(`%${cliente}%`); conds.push(`c.nome ILIKE $${params.length}`); }
-
-  const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
+  let where = '';
+  if (filtro) {
+    params.push(`%${filtro}%`);
+    where = `WHERE (c.nome ILIKE $1 OR CAST(c.codigo AS TEXT) ILIKE $1 OR COALESCE(c.cpf,'') ILIKE $1)`;
+  }
   const { rows } = await db.query(
-    `SELECT s.id, s.numero, s.data_venda, s.status, s.total, c.nome AS cliente
-       FROM saidas s
-       LEFT JOIN clientes c ON c.id = s.cliente_id
+    `SELECT c.chave, c.codigo, c.nome, c.fisjur, c.tipo, c.cpf, c.email, c.telefone, c.endereco,
+            c.pertenceemp, c.datahoracad, c.datahoraalt
+       FROM clifor c
      ${where}
-     ORDER BY s.data_venda DESC`,
+     ORDER BY c.datahoracad DESC`,
     params
   );
   return rows;
 });
 
-/* Entradas — cabeçalho + itens */
-ipcMain.handle('entradas:criar', async (_e, entrada) => {
-  const { fornecedor_id, tipo, observacao, itens } = entrada; // itens: [{produto_id?, servico_id?, qtde, preco_unit}]
-  const client = await db.pool.connect();
-  try {
-    await client.query('BEGIN');
-    const { rows } = await client.query(
-      `INSERT INTO entradas (fornecedor_id, tipo, observacao) VALUES ($1,$2,$3) RETURNING id, numero`,
-      [fornecedor_id || null, tipo || 'COMPRA', observacao || null]
-    );
-    const entradaId = rows[0].id;
+/** Cria registro em clifor (ativo default 1, codigo auto) */
+ipcMain.handle('clientes:criar', async (_e, c) => {
+  const { nome, fisjur, tipo, pertenceemp, email, cpf, telefone, endereco } = c || {};
+  if (!nome || String(nome).trim() === '') throw new Error('Nome é obrigatório.');
 
-    for (const it of itens || []) {
-      await client.query(
-        `INSERT INTO entrada_itens (entrada_id, produto_id, servico_id, qtde, preco_unit)
-         VALUES ($1,$2,$3,$4,$5)`,
-        [entradaId, it.produto_id || null, it.servico_id || null, it.qtde || 1, it.preco_unit || 0]
-      );
-    }
+  const sql = `
+    INSERT INTO clifor (ativo, nome, fisjur, tipo, pertenceemp, email, cpf, telefone, endereco)
+    VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8)
+    RETURNING chave, codigo
+  `;
+  const params = [
+    String(nome).trim(),
+    Number(fisjur) || 1,
+    Number(tipo) || 1,
+    (pertenceemp ? Number(pertenceemp) : null),
+    (email ? String(email).trim() : null),
+    (cpf ? String(cpf).trim() : null),
+    (telefone ? String(telefone).trim() : null),
+    (endereco ? String(endereco).trim() : null)
+  ];
 
-    await client.query('COMMIT');
-    return { ok: true, id: entradaId, numero: rows[0].numero };
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
-  }
+  const { rows } = await db.query(sql, params);
+  return rows[0];
 });
 
-ipcMain.handle('entradas:listar', async (_e, { de, ate, fornecedor }) => {
-  const params = [];
-  const conds = [];
-  if (de)         { params.push(de);         conds.push(`e.data_doc >= $${params.length}`); }
-  if (ate)        { params.push(ate);        conds.push(`e.data_doc <= $${params.length}`); }
-  if (fornecedor) { params.push(`%${fornecedor}%`); conds.push(`f.razao_social ILIKE $${params.length}`); }
-
-  const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
-  const { rows } = await db.query(
-    `SELECT e.id, e.numero, e.data_doc, e.tipo, e.total, f.razao_social AS fornecedor
-       FROM entradas e
-       LEFT JOIN fornecedores f ON f.id = e.fornecedor_id
-     ${where}
-     ORDER BY e.data_doc DESC`,
-    params
-  );
-  return rows;
-});
+/* ===========================================================
+   AUTOLOAD de módulos IPC adicionais (ex.: movimentacoes.js)
+   =========================================================== */
+const ipcDir = path.join(__dirname, 'ipc');
+if (fs.existsSync(ipcDir)) {
+  fs.readdirSync(ipcDir)
+    .filter(f => f.endsWith('.js'))
+    .forEach(f => { try { require(path.join(ipcDir, f)); } catch (e) { console.error('[IPC]', f, e); } });
+}

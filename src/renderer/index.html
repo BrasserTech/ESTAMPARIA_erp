@@ -25,6 +25,7 @@
             <span class="label">Cadastrar</span><span class="caret">▾</span>
           </button>
           <div id="submenu-cadastrar" class="submenu">
+            <!-- Produtos básicos -->
             <a href="#/cadastro/produtos" class="submenu-link">
               <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M3 7h18M3 12h18M3 17h18"/></svg>
               Produtos
@@ -36,6 +37,26 @@
             <a href="#/cadastro/servicos" class="submenu-link">
               <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M9.5 6.5l5 5-5 5M4 12h10"/></svg>
               Serviços
+            </a>
+
+            <!-- Entradas (separadas) -->
+            <a href="#/cadastro/entradas/produtos" class="submenu-link">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M12 3v18M5 12h14"/></svg>
+              Entrada (Produtos)
+            </a>
+            <a href="#/cadastro/entradas/servicos" class="submenu-link">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M12 3v18M5 12h14"/></svg>
+              Entrada (Serviços)
+            </a>
+
+            <!-- Saídas (separadas) -->
+            <a href="#/cadastro/saidas/produtos" class="submenu-link">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M12 21V3M5 12h14"/></svg>
+              Saída (Produtos)
+            </a>
+            <a href="#/cadastro/saidas/servicos" class="submenu-link">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M12 21V3M5 12h14"/></svg>
+              Saída (Serviços)
             </a>
           </div>
 
@@ -69,7 +90,6 @@
           </a>
         </div>
 
-        <!-- Rodapé do menu (sempre colado embaixo) -->
         <div class="nav-bottom">
           <a class="nav-item" href="#/configuracoes">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M12 15.5a3.5 3.5 0 100-7 3.5 3.5 0 000 7zM19.4 15a7.97 7.97 0 00.1-6l2-1-2-3-2 1a8.03 8.03 0 00-5-2l-1-2H9l-1 2a8.03 8.03 0 00-5 2l-2-1-2 3 2 1a7.97 7.97 0 000 6l-2 1 2 3 2-1a8.03 8.03 0 005 2l1 2h4l1-2a8.03 8.03 0 005-2l2 1 2-3-2-1z"/></svg>
@@ -103,11 +123,22 @@
     </main>
   </div>
 
-  <!-- Views -->
+  <!-- Views de base -->
   <script src="./views/dashboard.js"></script>
   <script src="./views/cadastro-produtos.js"></script>
   <script src="./views/cadastro-clientes.js"></script>
   <script src="./views/cadastro-servicos.js"></script>
+
+  <!-- MODAL DE PESQUISA (F8 + lupa) -->
+  <script src="./views/lookup-modal.js"></script>
+
+  <!-- Entradas/Saídas (separadas) -->
+  <script src="./views/cadastro-entrada-prod.js"></script>
+  <script src="./views/cadastro-entrada-serv.js"></script>
+  <script src="./views/cadastro-saida-prod.js"></script>
+  <script src="./views/cadastro-saida-serv.js"></script>
+
+  <!-- Consultas etc -->
   <script src="./views/consulta-produtos.js"></script>
   <script src="./views/consulta-clientes.js"></script>
   <script src="./views/consulta-servicos.js"></script>

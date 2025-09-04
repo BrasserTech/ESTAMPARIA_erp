@@ -5,7 +5,7 @@ window.renderConsultaClientes = function () {
     html: `
       <div class="card">
         <div class="actions" style="margin-bottom:12px; gap:8px">
-          <input class="input" id="q-cli" placeholder="Buscar por nome ou documento..." style="max-width:360px" />
+          <input class="input" id="q-cli" placeholder="Buscar por nome, documento ou e-mail..." style="max-width:360px" />
           <button class="button" id="btn-buscar">Buscar</button>
           <button class="button outline" id="btn-limpar">Limpar</button>
         </div>
@@ -13,7 +13,10 @@ window.renderConsultaClientes = function () {
         <table class="table">
           <thead>
             <tr>
+              <th>Código</th>
               <th>Nome</th>
+              <th>F/J</th>
+              <th>Tipo</th>
               <th>Documento</th>
               <th>Email</th>
               <th>Telefone</th>
@@ -43,23 +46,30 @@ window.renderConsultaClientes = function () {
       let page = 1;
       const pageSize = 10;
 
-      function fmt(v){ return v == null ? '' : v; }
-      function dt(v){ return v ? new Date(v).toLocaleString() : ''; }
+      function fmt(v) { return v == null ? '' : v; }
+      function dt(v) { return v ? new Date(v).toLocaleString() : ''; }
+      function tipoTexto(t) {
+        const m = { 1: 'Cliente', 2: 'Fornecedor', 3: 'Representante' };
+        return m[String(t)] || '';
+      }
 
       function render() {
         const start = (page - 1) * pageSize;
         const pageRows = rows.slice(start, start + pageSize);
         if (!pageRows.length) {
-          tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#78909c;background:#fff">Nenhum registro</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:#78909c;background:#fff">Nenhum registro</td></tr>`;
         } else {
           tbody.innerHTML = pageRows.map(r => `
             <tr>
+              <td>${fmt(r.codigo)}</td>
               <td>${fmt(r.nome)}</td>
-              <td>${fmt(r.documento)}</td>
+              <td>${fmt(r.fisjur)}</td>
+              <td>${tipoTexto(r.tipo)}</td>
+              <td>${fmt(r.cpf)}</td>
               <td>${fmt(r.email)}</td>
               <td>${fmt(r.telefone)}</td>
               <td>${fmt(r.endereco)}</td>
-              <td>${dt(r.created_at)}</td>
+              <td>${dt(r.datahoracad)}</td>
             </tr>
           `).join('');
         }
@@ -81,7 +91,7 @@ window.renderConsultaClientes = function () {
       }
 
       document.getElementById('btn-buscar').addEventListener('click', carregar);
-      document.getElementById('btn-limpar').addEventListener('click', () => { q.value=''; carregar(); });
+      document.getElementById('btn-limpar').addEventListener('click', () => { q.value = ''; carregar(); });
       q.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') carregar(); });
       pgPrev.addEventListener('click', () => { if (page > 1) { page--; render(); } });
       pgNext.addEventListener('click', () => {
@@ -91,5 +101,5 @@ window.renderConsultaClientes = function () {
 
       carregar();
     }
-  }
-}
+  };
+};

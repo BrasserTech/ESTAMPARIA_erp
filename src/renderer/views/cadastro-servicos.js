@@ -1,64 +1,107 @@
 // src/renderer/views/cadastro-servicos.js
-window.renderCadastroServicos = function(){
+window.renderCadastroServicos = function () {
   return {
     title: 'Cadastro de Serviços',
     html: `
       <div class="card">
-        <form class="form" id="form-serv">
-          <div>
-            <label class="label">Código*</label>
-            <input class="input" id="s-cod" required placeholder="EST-001" />
+        <form class="form" id="form-serv" autocomplete="off">
+          <div class="form-fields">
+            <div style="grid-column:1/-1">
+              <label class="label">Nome*</label>
+              <input class="input" id="s-nome" required maxlength="100" placeholder="Ex.: Silk 1 cor" />
+            </div>
+
+            <div>
+              <label class="label">Valor de venda* (R$)</label>
+              <input class="input" id="s-valor" type="number" step="0.01" min="0" value="0" required />
+            </div>
+
+            <div>
+              <label class="label">Categoria</label>
+              <input class="input" id="s-cat" type="number" step="1" min="1" value="1" />
+            </div>
+
+            <div>
+              <label class="label">Empresa (referência) — opcional</label>
+              <div style="display:flex; gap:6px">
+                <input class="input" id="s-emp" placeholder="F8 para pesquisar empresa" data-lookup="empresas" data-target-id="s-emp-id" />
+                <button type="button" class="button outline" id="s-emp-lupa" title="Pesquisar (F8)">🔎</button>
+              </div>
+              <input type="hidden" id="s-emp-id" />
+            </div>
+
+            <div>
+              <label class="label">Validade (opcional)</label>
+              <input class="input" id="s-valid" type="date" />
+            </div>
+
+            <div>
+              <label class="label">Prazo de Entrega (opcional)</label>
+              <input class="input" id="s-prazo" type="date" />
+            </div>
+
+            <div style="grid-column:1/-1">
+              <label class="label">Observações</label>
+              <textarea class="textarea" id="s-obs" rows="3" maxlength="300" placeholder="Detalhes do serviço..."></textarea>
+            </div>
           </div>
-          <div>
-            <label class="label">Tipo</label>
-            <input class="input" id="s-tipo" placeholder="Silk, Sublimação, DTF..." />
-          </div>
-          <div class="full">
-            <label class="label">Descrição*</label>
-            <textarea class="textarea" id="s-desc" rows="3" required placeholder="Ex.: Estampa 1 cor"></textarea>
-          </div>
-          <div>
-            <label class="label">Valor (R$)*</label>
-            <input class="input" id="s-valor" type="number" step="0.01" value="0" required />
-          </div>
-          <div>
-            <label class="label">Quantidade padrão</label>
-            <input class="input" id="s-qtde" type="number" step="1" value="1" />
-          </div>
-          <div>
-            <label class="label">Prazo (dias)</label>
-            <input class="input" id="s-prazo" type="number" step="1" />
-          </div>
-          <div class="full actions" style="margin-top:6px">
+
+          <!-- Botões no rodapé, à direita -->
+          <div class="form-actions">
             <button type="submit" class="button">Salvar</button>
-            <button type="reset" class="button outline">Limpar</button>
+            <button type="reset" class="button outline" id="s-reset">Limpar</button>
           </div>
         </form>
       </div>
     `,
-    afterRender(){
+    afterRender() {
       const { ipcRenderer } = require('electron');
-      const form = document.getElementById('form-serv');
+      const $ = (id) => document.getElementById(id);
 
-      form.addEventListener('submit', async (e)=>{
+      // Lupa / F8 para Empresa
+      $('s-emp-lupa').addEventListener('click', () => {
+        if (typeof openLookup !== 'function') return toast('Lookup não carregado.', true);
+        openLookup('empresas', ({ id, label }) => {
+          $('s-emp-id').value = String(id);
+          $('s-emp').value = label;
+        });
+      });
+
+      function resetAll() {
+        $('form-serv').reset();
+        $('s-emp-id').value = '';
+        $('s-emp').value = '';
+        $('s-cat').value = '1';
+        $('s-valor').value = '0';
+        $('s-nome').focus();
+      }
+      $('s-reset').addEventListener('click', resetAll);
+
+      $('form-serv').addEventListener('submit', async (e) => {
         e.preventDefault();
-        try{
+        try {
+          const nome = ($('s-nome').value || '').trim();
+          if (!nome) return toast('Informe o nome do serviço.', true);
+
           const payload = {
-            codigo: document.getElementById('s-cod').value.trim(),
-            tipo: document.getElementById('s-tipo').value || null,
-            descricao: document.getElementById('s-desc').value.trim(),
-            valor: parseFloat(document.getElementById('s-valor').value || '0'),
-            quantidade_padrao: parseInt(document.getElementById('s-qtde').value || '1',10),
-            prazo_dias: document.getElementById('s-prazo').value ? parseInt(document.getElementById('s-prazo').value,10) : null
+            nome,
+            valorvenda: Number($('s-valor').value || '0') || 0,
+            chaveemp: Number($('s-emp-id').value || '') || null,
+            obs: ($('s-obs').value || '').trim() || null,
+            categoria: Number($('s-cat').value || '1') || 1,
+            validade: $('s-valid').value || null,
+            prazoentrega: $('s-prazo').value || null
           };
-          if(!payload.codigo || !payload.descricao){ return toast('Preencha Código e Descrição', true); }
+
           await ipcRenderer.invoke('servicos:criar', payload);
           toast('Serviço salvo!');
-          form.reset();
-        }catch(err){
-          toast('Erro ao salvar: '+err.message, true);
+          resetAll();
+        } catch (err) {
+          toast('Erro ao salvar: ' + err.message, true);
         }
       });
+
+      $('s-nome').focus();
     }
-  }
-}
+  };
+};

@@ -5,21 +5,21 @@ window.renderConsultaProdutos = function () {
     html: `
       <div class="card">
         <div class="actions" style="margin-bottom:12px; gap:8px">
-          <input class="input" id="q-prod" placeholder="Buscar por nome ou SKU..." style="max-width:360px" />
+          <input class="input" id="q-prod" placeholder="Buscar por nome ou código..." style="max-width:360px" />
           <button class="button" id="btn-buscar">Buscar</button>
           <button class="button outline" id="btn-limpar">Limpar</button>
         </div>
 
-        <!-- Datagrid -->
         <div class="datagrid" id="dg-produtos">
           <div class="dg-row dg-head">
-            <div class="dg-cell">SKU</div>
+            <div class="dg-cell">Código</div>
             <div class="dg-cell">Nome</div>
             <div class="dg-cell">Categoria</div>
-            <div class="dg-cell">Unid.</div>
             <div class="dg-cell">Validade</div>
-            <div class="dg-cell">Estoque</div>
-            <div class="dg-cell">Preço Venda (R$)</div>
+            <div class="dg-cell">Compra (R$)</div>
+            <div class="dg-cell">Venda (R$)</div>
+            <div class="dg-cell">Ativo</div>
+            <div class="dg-cell">Criado em</div>
           </div>
           <div id="dg-body"></div>
         </div>
@@ -43,9 +43,11 @@ window.renderConsultaProdutos = function () {
       let page = 1;
       const pageSize = 10;
 
-      const fmt = v => (v == null ? '' : v);
-      const money = n => Number(n || 0).toFixed(2);
-      const validade = d => d ? new Date(d).toLocaleDateString() : '';
+      const fmt = (v) => (v == null ? '' : v);
+      const money = (n) => Number(n || 0).toFixed(2);
+      const dmy = (d) => (d ? new Date(d).toLocaleDateString() : '');
+      const dts = (d) => (d ? new Date(d).toLocaleString() : '');
+      const ativoTxt = (a) => (String(a) === '2' ? 'Não' : 'Sim');
 
       function render() {
         const start = (page - 1) * pageSize;
@@ -59,17 +61,21 @@ window.renderConsultaProdutos = function () {
               </div>
             </div>`;
         } else {
-          body.innerHTML = pageRows.map(r => `
+          body.innerHTML = pageRows
+            .map(
+              (r) => `
             <div class="dg-row">
-              <div class="dg-cell">${fmt(r.sku)}</div>
+              <div class="dg-cell">${fmt(r.codigo)}</div>
               <div class="dg-cell">${fmt(r.nome)}</div>
               <div class="dg-cell">${fmt(r.categoria)}</div>
-              <div class="dg-cell">${fmt(r.unidade)}</div>
-              <div class="dg-cell">${validade(r.validade)}</div>
-              <div class="dg-cell">${fmt(r.estoque_atual)}</div>
-              <div class="dg-cell">${money(r.preco_venda)}</div>
-            </div>
-          `).join('');
+              <div class="dg-cell">${dmy(r.validade)}</div>
+              <div class="dg-cell">${money(r.valorcompra)}</div>
+              <div class="dg-cell">${money(r.valorvenda)}</div>
+              <div class="dg-cell">${ativoTxt(r.ativo)}</div>
+              <div class="dg-cell">${dts(r.datahoracad)}</div>
+            </div>`
+            )
+            .join('');
         }
 
         const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
@@ -90,15 +96,28 @@ window.renderConsultaProdutos = function () {
       }
 
       document.getElementById('btn-buscar').addEventListener('click', carregar);
-      document.getElementById('btn-limpar').addEventListener('click', () => { q.value=''; carregar(); });
-      q.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') carregar(); });
-      pgPrev.addEventListener('click', () => { if (page > 1) { page--; render(); } });
+      document.getElementById('btn-limpar').addEventListener('click', () => {
+        q.value = '';
+        carregar();
+      });
+      q.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') carregar();
+      });
+      pgPrev.addEventListener('click', () => {
+        if (page > 1) {
+          page--;
+          render();
+        }
+      });
       pgNext.addEventListener('click', () => {
         const totalPages = Math.ceil(rows.length / pageSize);
-        if (page < totalPages) { page++; render(); }
+        if (page < totalPages) {
+          page++;
+          render();
+        }
       });
 
       carregar();
-    }
-  }
-}
+    },
+  };
+};

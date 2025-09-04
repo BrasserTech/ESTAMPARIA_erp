@@ -1,15 +1,26 @@
 // src/renderer/router.js
 const ROUTE_MAP = {
   '#/': 'renderDashboard',
+
   '#/cadastro/produtos': 'renderCadastroProdutos',
   '#/cadastro/clientes': 'renderCadastroClientes',
   '#/cadastro/servicos': 'renderCadastroServicos',
+
+  // ENTRADAS separadas
+  '#/cadastro/entradas/produtos': 'renderCadastroEntradaProd',
+  '#/cadastro/entradas/servicos': 'renderCadastroEntradaServ',
+
+  // SAÍDAS separadas
+  '#/cadastro/saidas/produtos': 'renderCadastroSaidaProd',
+  '#/cadastro/saidas/servicos': 'renderCadastroSaidaServ',
+
   '#/consulta/produtos': 'renderConsultaProdutos',
   '#/consulta/clientes': 'renderConsultaClientes',
   '#/consulta/servicos': 'renderConsultaServicos',
+
   '#/relatorios': 'renderRelatorios',
   '#/configuracoes': 'renderConfiguracoes',
-  '#/perfil': 'renderPerfil' // NOVA
+  '#/perfil': 'renderPerfil'
 };
 
 window.navigate = function (hash) {

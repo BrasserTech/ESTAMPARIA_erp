@@ -5,7 +5,7 @@ window.renderConsultaServicos = function () {
     html: `
       <div class="card">
         <div class="actions" style="margin-bottom:12px; gap:8px">
-          <input class="input" id="q-serv" placeholder="Buscar por descrição ou código..." style="max-width:360px" />
+          <input class="input" id="q-serv" placeholder="Buscar por nome ou código..." style="max-width:360px" />
           <button class="button" id="btn-buscar">Buscar</button>
           <button class="button outline" id="btn-limpar">Limpar</button>
         </div>
@@ -14,12 +14,13 @@ window.renderConsultaServicos = function () {
           <thead>
             <tr>
               <th>Código</th>
-              <th>Tipo</th>
-              <th>Descrição</th>
+              <th>Nome</th>
+              <th>Categoria</th>
+              <th>Validade</th>
+              <th>Prazo Entrega</th>
               <th>Valor (R$)</th>
-              <th>Qtd. Padrão</th>
-              <th>Prazo (dias)</th>
               <th>Ativo</th>
+              <th>Criado em</th>
             </tr>
           </thead>
           <tbody id="tbl-servicos"></tbody>
@@ -44,26 +45,33 @@ window.renderConsultaServicos = function () {
       let page = 1;
       const pageSize = 10;
 
-      function money(n){ return Number(n || 0).toFixed(2); }
-      function fmt(v){ return v == null ? '' : v; }
+      const fmt = (v) => (v == null ? '' : v);
+      const money = (n) => Number(n || 0).toFixed(2);
+      const dmy = (d) => (d ? new Date(d).toLocaleDateString() : '');
+      const dts = (d) => (d ? new Date(d).toLocaleString() : '');
+      const ativoTxt = (a) => (String(a) === '2' ? 'Não' : 'Sim');
 
       function render() {
         const start = (page - 1) * pageSize;
         const pageRows = rows.slice(start, start + pageSize);
         if (!pageRows.length) {
-          tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#78909c;background:#fff">Nenhum registro</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:#78909c;background:#fff">Nenhum registro</td></tr>`;
         } else {
-          tbody.innerHTML = pageRows.map(r => `
-            <tr>
-              <td>${fmt(r.codigo)}</td>
-              <td>${fmt(r.tipo)}</td>
-              <td>${fmt(r.descricao)}</td>
-              <td>${money(r.valor)}</td>
-              <td>${fmt(r.quantidade_padrao)}</td>
-              <td>${fmt(r.prazo_dias)}</td>
-              <td>${r.ativo ? 'Sim' : 'Não'}</td>
-            </tr>
-          `).join('');
+          tbody.innerHTML = pageRows
+            .map(
+              (r) => `
+              <tr>
+                <td>${fmt(r.codigo)}</td>
+                <td>${fmt(r.nome)}</td>
+                <td>${fmt(r.categoria)}</td>
+                <td>${dmy(r.validade)}</td>
+                <td>${dmy(r.prazoentrega)}</td>
+                <td>${money(r.valorvenda)}</td>
+                <td>${ativoTxt(r.ativo)}</td>
+                <td>${dts(r.datahoracad)}</td>
+              </tr>`
+            )
+            .join('');
         }
         const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
         pgInfo.textContent = `Página ${page} de ${totalPages} — ${rows.length} registro(s)`;
@@ -83,7 +91,10 @@ window.renderConsultaServicos = function () {
       }
 
       document.getElementById('btn-buscar').addEventListener('click', carregar);
-      document.getElementById('btn-limpar').addEventListener('click', () => { q.value=''; carregar(); });
+      document.getElementById('btn-limpar').addEventListener('click', () => {
+        q.value = '';
+        carregar();
+      });
       q.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') carregar(); });
       pgPrev.addEventListener('click', () => { if (page > 1) { page--; render(); } });
       pgNext.addEventListener('click', () => {
@@ -92,6 +103,6 @@ window.renderConsultaServicos = function () {
       });
 
       carregar();
-    }
-  }
-}
+    },
+  };
+};
