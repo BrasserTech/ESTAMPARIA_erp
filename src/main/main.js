@@ -206,54 +206,111 @@ ipcMain.handle('clientes:criar', async (_e, c) => {
 });
 
 /* ===================================================================
-   LOOKUP / PESQUISA GENÉRICA (F8 / Lupa)
+   LOOKUP / PESQUISA GENÉRICA (F8 / Lupa) — versão robusta
    =================================================================== */
-ipcMain.handle('lookup:search', async (_e, { source, term, limit = 50 } = {}) => {
-  const q = `%${String(term || '').trim()}%`;
-  const lim = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+ipcMain.handle('lookup:search', async (_e, payload = {}) => {
+  // 1) Sanitização básica
+  const termRaw  = (payload.term ?? '');
+  const limitRaw = (payload.limit ?? 50);
+  const lim = Math.min(Math.max(parseInt(limitRaw, 10) || 50, 1), 200);
 
-  if (!['empresa', 'produtos', 'servicos', 'clifor'].includes(source))
-    throw new Error('Fonte de pesquisa não permitida.');
+  // 2) Normalização do source (lower + remoção de acentos)
+  const rawSource = (payload.source ?? '')
+    .toString()
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, ''); // requer Node com ICU completo
 
-  let sql, params = [q, q, lim];
+  // 3) Mapeamento de sinônimos (pt/en; singular/plural)
+  const alias = {
+    // EMPRESA
+    empresa: 'empresa', empresas: 'empresa', emp: 'empresa', company: 'empresa', companies: 'empresa',
+    // PRODUTOS
+    produto: 'produtos', produtos: 'produtos', prod: 'produtos', product: 'produtos', products: 'produtos',
+    // SERVIÇOS
+    servico: 'servicos', servicos: 'servicos', svc: 'servicos', service: 'servicos', services: 'servicos',
+    // CLIFOR (clientes/fornecedores/pessoas)
+    clifor: 'clifor',
+    cliente: 'clifor', clientes: 'clifor',
+    fornecedor: 'clifor', fornecedores: 'clifor',
+    pessoa: 'clifor', pessoas: 'clifor'
+  };
 
-  switch (source) {
-    case 'empresa':
-      sql = `
-        SELECT chave, codigo, nome
-          FROM empresa
-         WHERE (nome ILIKE $1 OR CAST(codigo AS TEXT) ILIKE $2)
-         ORDER BY nome
-         LIMIT $3`;
-      break;
-    case 'produtos':
-      sql = `
-        SELECT chave, codigo, nome
-          FROM produtos
-         WHERE (nome ILIKE $1 OR CAST(codigo AS TEXT) ILIKE $2)
-         ORDER BY nome
-         LIMIT $3`;
-      break;
-    case 'servicos':
-      sql = `
-        SELECT chave, codigo, nome
-          FROM servicos
-         WHERE (nome ILIKE $1 OR CAST(codigo AS TEXT) ILIKE $2)
-         ORDER BY nome
-         LIMIT $3`;
-      break;
-    case 'clifor':
-      sql = `
-        SELECT chave, codigo, nome
-          FROM clifor
-         WHERE (nome ILIKE $1 OR CAST(codigo AS TEXT) ILIKE $2)
-         ORDER BY nome
-         LIMIT $3`;
-      break;
+  // 4) Resolve a fonte
+  let source = alias[rawSource];
+
+  // Heurística por substring (ex.: "prod-list", "services-page", "empresas  ", etc.)
+  if (!source && rawSource) {
+    if (rawSource.includes('emp')) source = 'empresa';
+    else if (rawSource.includes('prod')) source = 'produtos';
+    else if (rawSource.includes('serv')) source = 'servicos';
+    else if (rawSource.includes('cli') || rawSource.includes('for') || rawSource.includes('pess')) source = 'clifor';
   }
 
-  const { rows } = await db.query(sql, params);
-  return rows;
+  // 5) Fallback quando vier vazio/inesperado
+  // Ajuste este valor conforme a tela chamadora: 'produtos' | 'servicos' | 'empresa' | 'clifor'
+  const fallbackDefault = 'produtos';
+  if (!source) {
+    source = fallbackDefault;
+    // Se preferir comportamento estrito (sem fallback), comente a linha acima
+    // e descomente o bloco abaixo:
+    /*
+    const allowed = Object.keys(alias).sort().join(', ');
+    const got = rawSource || '(vazio)';
+    throw new Error(`Fonte de pesquisa não permitida. Recebido: "${got}". Use uma destas: ${allowed}`);
+    */
+  }
+
+  // 6) Parâmetros de busca
+  const term  = termRaw.toString().trim();
+  const qLike = `%${term}%`;
+  const params = [term, qLike, lim];
+
+  // 7) SQL por fonte (conforme seu schema.sql)
+  let sql;
+  if (source === 'empresa') {
+    sql = `
+      SELECT chave, codigo, nome
+        FROM empresa
+       WHERE ($1 = '' OR nome ILIKE $2 OR CAST(codigo AS TEXT) ILIKE $2)
+       ORDER BY nome
+       LIMIT $3
+    `;
+  } else if (source === 'produtos') {
+    sql = `
+      SELECT chave, codigo, nome, valorvenda
+        FROM produtos
+       WHERE ($1 = '' OR nome ILIKE $2 OR CAST(codigo AS TEXT) ILIKE $2)
+       ORDER BY nome
+       LIMIT $3
+    `;
+  } else if (source === 'servicos') {
+    sql = `
+      SELECT chave, codigo, nome, valorvenda
+        FROM servicos
+       WHERE ($1 = '' OR nome ILIKE $2 OR CAST(codigo AS TEXT) ILIKE $2)
+       ORDER BY nome
+       LIMIT $3
+    `;
+  } else { // 'clifor'
+    sql = `
+      SELECT chave, codigo, nome
+        FROM clifor
+       WHERE ($1 = '' OR nome ILIKE $2 OR CAST(codigo AS TEXT) ILIKE $2)
+       ORDER BY nome
+       LIMIT $3
+    `;
+  }
+
+  // 8) Execução e tratamento
+  try {
+    const { rows } = await db.query(sql, params);
+    return rows;
+  } catch (err) {
+    const got = rawSource || '(vazio)';
+    throw new Error(`Falha ao pesquisar (${source}; recebido="${got}"): ${err.message}`);
+  }
 });
 
 /* ===================================================================
