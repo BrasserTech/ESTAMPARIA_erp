@@ -4,14 +4,13 @@ window.renderDashboard = function () {
     title: 'Dashboard',
     html: `
       <style>
-        /* layout do dashboard sem scroll: 2x2 cards */
         .dash-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:12px}
         .dash-summary{background:#f5f8fe;border:1px solid #e6eef9;border-radius:12px;padding:10px 12px;color:#0f2544}
 
         .dash-grid{
           display:grid;
           grid-template-columns: 1fr 1fr;
-          grid-auto-rows: 280px;       /* altura suficiente para caber em uma tela 768p sem rolagem */
+          grid-auto-rows: 280px;
           gap:16px;
         }
         .chart-card{
@@ -26,6 +25,7 @@ window.renderDashboard = function () {
         .dot{width:10px;height:10px;border-radius:3px;display:inline-block}
         .dot.blue{background:#3b82f6}
         .dot.green{background:#22c55e}
+        .dot.red{background:#ef4444}
       </style>
 
       <div class="card">
@@ -42,7 +42,6 @@ window.renderDashboard = function () {
       </div>
 
       <div class="dash-grid" style="margin-top:12px">
-        <!-- 1) Entradas x Saídas -->
         <div class="chart-card">
           <div class="chart-title">Entradas × Saídas (por mês)</div>
           <div class="chart-wrap"><canvas id="ch-ems"></canvas></div>
@@ -52,24 +51,23 @@ window.renderDashboard = function () {
           </div>
         </div>
 
-        <!-- 2) Top 5 clientes por faturamento -->
         <div class="chart-card">
           <div class="chart-title">Top 5 clientes por faturamento</div>
           <div class="chart-wrap"><canvas id="ch-topcli"></canvas></div>
         </div>
 
-        <!-- 3) Composição do faturamento -->
         <div class="chart-card">
           <div class="chart-title">Composição do faturamento</div>
           <div class="chart-wrap"><canvas id="ch-mix"></canvas></div>
           <div class="legend" id="mix-legend" style="gap:18px"></div>
         </div>
 
-        <!-- 4) Espaço livre (reserva para futuro gráfico; mantém 2×2 sem rolagem) -->
-        <div class="chart-card" style="display:flex;align-items:center;justify-content:center;color:#94a3b8">
-          <div style="padding:8px 12px;text-align:center">
-            <div style="font-weight:700;margin-bottom:4px">Área disponível</div>
-            <div style="font-size:12px">Você pode colocar aqui outro indicador futuramente (ex.: Lucro x Prejuízo por mês).</div>
+        <div class="chart-card">
+          <div class="chart-title">Lucro / Prejuízo (por mês)</div>
+          <div class="chart-wrap"><canvas id="ch-profit"></canvas></div>
+          <div class="legend">
+            <span class="dot green"></span><span>Lucro</span>
+            <span class="dot red" style="margin-left:8px"></span><span>Prejuízo</span>
           </div>
         </div>
       </div>
@@ -85,6 +83,7 @@ window.renderDashboard = function () {
       const cvEMS = document.getElementById('ch-ems');
       const cvTOP = document.getElementById('ch-topcli');
       const cvMIX = document.getElementById('ch-mix');
+      const cvPRO = document.getElementById('ch-profit');
       const mixLegend = document.getElementById('mix-legend');
 
       let cache = {
@@ -101,7 +100,7 @@ window.renderDashboard = function () {
       }
 
       function renderSummary(k) {
-        const res = (k.totalSaidas || 0) - (k.totalEntradas || 0);
+        const res = (k.totalEntradas || 0) - (k.totalSaidas || 0);
         const text = `Resultado no período: ${fmtMoney(res)} ${res >= 0 ? '(Lucro)' : '(Prejuízo)'}`;
         out.textContent = text;
         out.style.color = res >= 0 ? '#14532d' : '#b91c1c';
@@ -120,29 +119,29 @@ window.renderDashboard = function () {
           <span><span class="dot blue"></span> Produtos: <strong>${(cache.mix.produtos || 0)}</strong></span>
           <span><span class="dot green"></span> Serviços: <strong>${(cache.mix.servicos || 0)}</strong></span>
         `;
+
+        // 4) Lucro/Prejuízo por mês (entradas - saídas)
+        const lucro = cache.labels.map((_, i) => (Number(cache.entradas[i]||0) - Number(cache.saidas[i]||0)));
+        window.drawProfitColumns(cvPRO, cache.labels, lucro);
       }
 
       async function carregar() {
         try {
           const meses = parseInt(sel.value, 10) || 6;
 
-          // kpis (entradas × saídas)
+          // KPIs (entradas x saídas)
           const kpis = await ipcRenderer.invoke('dashboard:kpis', { meses });
-          cache.labels = (kpis.labels || []).map(ym => {
-            // exibe como AAAA-MM no eixo; se quiser MMM/AA troque aqui
-            return ym;
-          });
+          cache.labels   = kpis.labels || [];
           cache.entradas = kpis.entradas || [];
-          cache.saidas = kpis.saidas || [];
-
+          cache.saidas   = kpis.saidas || [];
           renderSummary(kpis);
 
-          // top clientes
+          // Top clientes
           const top = await ipcRenderer.invoke('dashboard:topclientes', { meses });
           cache.toplabels = top.labels || [];
           cache.topvalues = top.values || [];
 
-          // mix (produtos × serviços)
+          // Mix
           cache.mix = await ipcRenderer.invoke('dashboard:mix', { meses });
 
           renderCharts();
@@ -154,7 +153,7 @@ window.renderDashboard = function () {
       btn.addEventListener('click', carregar);
       sel.addEventListener('change', carregar);
 
-      // Redesenha ao redimensionar janela (para manter responsivo e sem scroll)
+      // Redesenha ao redimensionar
       let resizeTimer;
       window.addEventListener('resize', () => {
         clearTimeout(resizeTimer);

@@ -35,18 +35,12 @@ window.renderCadastroServicos = function () {
               <input class="input" id="s-valid" type="date" />
             </div>
 
-            <div>
-              <label class="label">Prazo de Entrega (opcional)</label>
-              <input class="input" id="s-prazo" type="date" />
-            </div>
-
             <div style="grid-column:1/-1">
               <label class="label">Observações</label>
               <textarea class="textarea" id="s-obs" rows="3" maxlength="300" placeholder="Detalhes do serviço..."></textarea>
             </div>
           </div>
 
-          <!-- Botões no rodapé, à direita -->
           <div class="form-actions">
             <button type="submit" class="button">Salvar</button>
             <button type="reset" class="button outline" id="s-reset">Limpar</button>
@@ -89,8 +83,8 @@ window.renderCadastroServicos = function () {
             chaveemp: Number($('s-emp-id').value || '') || null,
             obs: ($('s-obs').value || '').trim() || null,
             categoria: Number($('s-cat').value || '1') || 1,
-            validade: $('s-valid').value || null,
-            prazoentrega: $('s-prazo').value || null
+            validade: $('s-valid').value || null
+            // prazoentrega removido do cadastro (será definido na saída)
           };
 
           await ipcRenderer.invoke('servicos:criar', payload);

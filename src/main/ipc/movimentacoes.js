@@ -1,96 +1,12 @@
 // src/main/ipc/movimentacoes.js
 const { ipcMain } = require('electron');
-const { pool, query } = require('../../database');
-
-/* ===========================================================
-   LOOKUP DINÂMICO — seguro (whitelist) e reutilizável
-   =========================================================== */
-const LOOKUP = {
-  empresas: {
-    table: 'empresa',
-    fields: ['chave', 'codigo', 'nome'],
-    searchCols: ['nome', 'codigo'], // codigo é INTEGER; faremos CAST para TEXT
-    orderBy: 'nome ASC'
-  },
-  produtos: {
-    table: 'produtos',
-    fields: ['chave', 'codigo', 'nome', 'valorvenda'],
-    searchCols: ['nome', 'codigo'],
-    orderBy: 'nome ASC'
-  },
-  servicos: {
-    table: 'servicos',
-    fields: ['chave', 'codigo', 'nome', 'valorvenda'],
-    searchCols: ['nome', 'codigo'],
-    orderBy: 'nome ASC'
-  },
-  clientes: {
-    table: 'clifor',
-    fields: ['chave', 'codigo', 'nome', 'tipo'],
-    searchCols: ['nome', 'codigo'],
-    orderBy: 'nome ASC',
-    extraWhere: 'tipo = 1'
-  },
-  fornecedores: {
-    table: 'clifor',
-    fields: ['chave', 'codigo', 'nome', 'tipo'],
-    searchCols: ['nome', 'codigo'],
-    orderBy: 'nome ASC',
-    extraWhere: 'tipo = 2'
-  }
-};
-
-ipcMain.handle('lookup:search', async (_evt, { entity, q = '', mode = 'contains', limit = 50 } = {}) => {
-  const LOOKUP = {
-    empresas:    { table: 'empresa',  fields: ['chave','codigo','nome'],               searchCols: ['nome','codigo'], orderBy: 'nome ASC' },
-    produtos:    { table: 'produtos', fields: ['chave','codigo','nome','valorvenda'], searchCols: ['nome','codigo'], orderBy: 'nome ASC' },
-    servicos:    { table: 'servicos', fields: ['chave','codigo','nome','valorvenda'], searchCols: ['nome','codigo'], orderBy: 'nome ASC' },
-    clientes:    { table: 'clifor',   fields: ['chave','codigo','nome','tipo'],       searchCols: ['nome','codigo'], orderBy: 'nome ASC', extraWhere: 'tipo = 1' },
-    fornecedores:{ table: 'clifor',   fields: ['chave','codigo','nome','tipo'],       searchCols: ['nome','codigo'], orderBy: 'nome ASC', extraWhere: 'tipo = 2' },
-  };
-
-  const cfg = LOOKUP[String(entity || '').toLowerCase()];
-  if (!cfg) throw new Error('Entidade de lookup não permitida.');
-
-  const params = [];
-  const where = [];
-
-  if (cfg.extraWhere) where.push(cfg.extraWhere);
-
-  const qTrim = String(q || '').trim();
-  if (qTrim) {
-    // contains => '%q%', starts_with => 'q%'
-    const pattern = (mode === 'starts_with') ? `${qTrim}%` : `%${qTrim}%`;
-    const ors = cfg.searchCols.map((col) => {
-      if (col === 'codigo') {
-        params.push(pattern);
-        return `CAST(${col} AS TEXT) ILIKE $${params.length}`;
-      }
-      params.push(pattern);
-      return `${col} ILIKE $${params.length}`;
-    });
-    where.push(`(${ors.join(' OR ')})`);
-  }
-
-  const whereSQL = where.length ? `WHERE ${where.join(' AND ')}` : '';
-  const fieldsSQL = cfg.fields.join(', ');
-  const orderSQL  = cfg.orderBy || '1';
-  const safeLimit = Math.max(1, Math.min(100, Number(limit) || 50));
-
-  const sql = `
-    SELECT ${fieldsSQL}
-      FROM ${cfg.table}
-    ${whereSQL}
-    ORDER BY ${orderSQL}
-    LIMIT ${safeLimit}
-  `;
-  const { rows } = await query(sql, params);
-  return rows;
-});
+const { query } = require('../../database');
 
 /* ===========================================================
    LOOKUPS ESPECÍFICOS (retrocompatibilidade)
+   (O lookup genérico 'lookup:search' já está registrado no main.js)
    =========================================================== */
+
 ipcMain.handle('movs:lookupClifor', async (_evt, { search = '', tipo = null, limit = 20 } = {}) => {
   const terms = [];
   const params = [];
@@ -238,15 +154,36 @@ ipcMain.handle('movs:saida:ensure', async (_evt, { chaveclifor, ativo = 1 } = {}
   return rows[0];
 });
 
-ipcMain.handle('movs:saida:addProd', async (_evt, { chavesaida, chaveproduto } = {}) => {
+ipcMain.handle('movs:saida:addProd', async (_evt, { chavesaida, chaveproduto, qtde = 1, valorunit = 0 } = {}) => {
   if (!chavesaida || !chaveproduto) throw new Error('Parâmetros inválidos.');
   const sql = `
-    INSERT INTO itemsaidaprod (ativo, chavesaida, chaveproduto)
-    VALUES (1, $1, $2)
+    INSERT INTO itemsaidaprod (ativo, chavesaida, chaveproduto, qtde, valorunit)
+    VALUES (1, $1, $2, $3, $4)
     RETURNING chave
   `;
-  const { rows } = await query(sql, [Number(chavesaida), Number(chaveproduto)]);
+  const { rows } = await query(sql, [Number(chavesaida), Number(chaveproduto), Number(qtde) || 1, Number(valorunit) || 0]);
   return rows[0];
+});
+
+ipcMain.handle('movs:saida:finalizar', async (_evt, { chavesaida, chaveclifor, obs = null } = {}) => {
+  if (!chavesaida || !chaveclifor) throw new Error('Parâmetros obrigatórios ausentes.');
+
+  // total calculado pelos itens (valortotal é trigger de qtde*valorunit)
+  const { rows: rTot } = await query(
+    `SELECT COALESCE(SUM(valortotal),0) AS tot FROM itemsaidaprod WHERE chavesaida = $1`,
+    [Number(chavesaida)]
+  );
+  const tot = Number(rTot[0]?.tot || 0);
+
+  const sql = `
+    UPDATE saidas
+       SET chaveclifor = $1,
+           total = $2,
+           obs = $3
+     WHERE chave = $4
+  `;
+  await query(sql, [Number(chaveclifor), tot, obs, Number(chavesaida)]);
+  return { ok: true, total: tot };
 });
 
 ipcMain.handle('movs:saida:addServ', async (_evt, { chavesaida, chaveservico } = {}) => {
@@ -283,4 +220,14 @@ ipcMain.handle('movs:saida:finalizar', async (_evt, { chavesaida, chaveclifor, t
   `;
   await query(sql, [Number(chaveclifor), Number(total) || 0, obs, Number(chavesaida)]);
   return { ok: true };
+});
+
+ipcMain.handle('estoque:produto:get', async (_e, { chaveproduto }) => {
+  const { rows } = await query(
+    `SELECT qtentrada, qtdesaida, qtdtotal
+       FROM produtoestoque
+      WHERE chaveproduto = $1
+      LIMIT 1`, [Number(chaveproduto)]
+  );
+  return rows[0] || { qtentrada: 0, qtdesaida: 0, qtdtotal: 0 };
 });

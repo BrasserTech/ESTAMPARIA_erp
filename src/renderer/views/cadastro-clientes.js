@@ -30,7 +30,7 @@ window.renderCadastroClientes = function () {
 
             <div>
               <label class="label">Documento (CPF/CNPJ)</label>
-              <input class="input" id="c-doc" maxlength="32" placeholder="000.000.000-00 / 00.000.000/0001-00" />
+              <input class="input" id="c-doc" maxlength="32" placeholder="00000000000 ou 00000000000000" />
             </div>
 
             <div>
@@ -58,7 +58,6 @@ window.renderCadastroClientes = function () {
             </div>
           </div>
 
-          <!-- Botões no rodapé, à direita -->
           <div class="form-actions">
             <button type="submit" class="button">Salvar</button>
             <button type="reset" class="button outline" id="c-reset">Limpar</button>
@@ -70,6 +69,59 @@ window.renderCadastroClientes = function () {
       const { ipcRenderer } = require('electron');
       const $ = (id) => document.getElementById(id);
 
+      /* ========= helpers de máscara/normalização ========= */
+      const onlyDigits = (s) => (s || '').replace(/\D+/g, '');
+
+      function formatCPF(digits) {
+        if (digits.length !== 11) return digits;
+        return `${digits.slice(0,3)}.${digits.slice(3,6)}.${digits.slice(6,9)}-${digits.slice(9)}`;
+      }
+
+      function formatCNPJ(digits) {
+        if (digits.length !== 14) return digits;
+        return `${digits.slice(0,2)}.${digits.slice(2,5)}.${digits.slice(5,8)}/${digits.slice(8,12)}-${digits.slice(12)}`;
+      }
+
+      function formatPhone(digits) {
+        // 10 dígitos: (00) 0000-0000 | 11 dígitos: (00) 00000-0000
+        if (digits.length === 10) {
+          return `(${digits.slice(0,2)}) ${digits.slice(2,6)}-${digits.slice(6)}`;
+        }
+        if (digits.length === 11) {
+          return `(${digits.slice(0,2)}) ${digits.slice(2,7)}-${digits.slice(7)}`;
+        }
+        return digits; // tamanhos diferentes, deixa como está
+      }
+
+      // Formata documento ao sair do campo (sem impedir o usuário digitar livre)
+      $('c-doc').addEventListener('blur', () => {
+        const raw = $('c-doc').value || '';
+        const digits = onlyDigits(raw);
+        if (!digits) { $('c-doc').value = ''; return; }
+
+        // decide formatação por tamanho
+        if (digits.length === 11) {
+          $('c-doc').value = formatCPF(digits);
+          // força fis/jur = Física se estiver vazio/errado
+          if (!$('c-fisjur').value) $('c-fisjur').value = '1';
+        } else if (digits.length === 14) {
+          $('c-doc').value = formatCNPJ(digits);
+          if (!$('c-fisjur').value) $('c-fisjur').value = '2';
+        } else {
+          // tamanho inesperado: mantém o que o usuário pôs (sem erro)
+          $('c-doc').value = raw;
+        }
+      });
+
+      // Formata telefone ao sair do campo
+      $('c-tel').addEventListener('blur', () => {
+        const raw = $('c-tel').value || '';
+        const digits = onlyDigits(raw);
+        if (!digits) { $('c-tel').value = ''; return; }
+        $('c-tel').value = formatPhone(digits);
+      });
+
+      /* ========= lookup Empresa ========= */
       $('c-emp-lupa').addEventListener('click', () => {
         if (typeof openLookup !== 'function') return toast('Lookup não carregado.', true);
         openLookup('empresas', ({ id, label }) => {
@@ -78,6 +130,7 @@ window.renderCadastroClientes = function () {
         });
       });
 
+      /* ========= reset ========= */
       function resetAll() {
         $('form-cli').reset();
         $('c-emp-id').value = '';
@@ -86,20 +139,27 @@ window.renderCadastroClientes = function () {
       }
       $('c-reset').addEventListener('click', resetAll);
 
+      /* ========= submit ========= */
       $('form-cli').addEventListener('submit', async (e) => {
         e.preventDefault();
         try {
           const nome = ($('c-nome').value || '').trim();
           if (!nome) return toast('Informe o nome.', true);
 
+          // normalizações para enviar ao back-end:
+          const fisjur = Number($('c-fisjur').value || '1') || 1; // 1 = Física, 2 = Jurídica
+          const cpfDigits = onlyDigits($('c-doc').value || '');
+          const telDigits = onlyDigits($('c-tel').value || '');
+
+          // envia somente dígitos (constraints costumam exigir isso)
           const payload = {
             nome,
-            fisjur: Number($('c-fisjur').value || 1),
-            tipo: Number($('c-tipo').value || 1),
+            fisjur,
+            tipo: Number($('c-tipo').value || '1') || 1,
             pertenceemp: Number($('c-emp-id').value || '') || null,
             email: ($('c-email').value || '').trim() || null,
-            cpf: ($('c-doc').value || '').trim() || null,
-            telefone: ($('c-tel').value || '').trim() || null,
+            cpf: (cpfDigits.length ? cpfDigits : null),
+            telefone: (telDigits.length ? telDigits : null),
             endereco: ($('c-end').value || '').trim() || null
           };
 

@@ -2,7 +2,7 @@
 (function () {
   const { ipcRenderer } = require('electron');
 
-  // Overlay (singleton)
+  // ===== Overlay (singleton) =====
   const modal = document.createElement('div');
   modal.id = 'lookup-modal';
   modal.style.cssText = `
@@ -10,7 +10,7 @@
     background: rgba(15, 23, 42, .35); z-index: 9999;
   `;
 
-  // Conteúdo do modal
+  // ===== Conteúdo =====
   modal.innerHTML = `
     <div id="lk-wrap"
          style="
@@ -38,13 +38,9 @@
                  border:1px solid #e5eaf0; border-radius:10px; overflow:hidden;
                ">
           <thead style="background:#f1f5f9; color:#0f172a; font-weight:600;">
-            <tr id="lk-head">
-              <!-- cabeçalho preenchido dinamicamente -->
-            </tr>
+            <tr id="lk-head"></tr>
           </thead>
-          <tbody id="lk-body">
-            <!-- linhas preenchidas dinamicamente -->
-          </tbody>
+          <tbody id="lk-body"></tbody>
         </table>
       </div>
 
@@ -55,9 +51,8 @@
     </div>
 
     <style>
-      /* estilos locais do modal */
       #lk-table th, #lk-table td { padding: 10px 12px; border-bottom: 1px solid #eef2f7; }
-      #lk-table thead th { border-bottom: 1px solid #e2e8f0; font-size: 12.5px; text-transform: none; }
+      #lk-table thead th { border-bottom: 1px solid #e2e8f0; font-size: 12.5px; }
       #lk-table tbody tr:last-child td { border-bottom: none; }
       #lk-table .col-codigo { width: 110px; white-space: nowrap; text-align: left; color:#0f172a; }
       #lk-table .col-nome   { text-align: left; color:#0f172a; }
@@ -70,7 +65,7 @@
   `;
   document.body.appendChild(modal);
 
-  // refs
+  // ===== Refs =====
   const elTitle = modal.querySelector('#lk-title');
   const elQ     = modal.querySelector('#lk-q');
   const elHead  = modal.querySelector('#lk-head');
@@ -79,6 +74,18 @@
   const elClose = modal.querySelector('#lk-close');
 
   let current = null; // { entity, setter }
+
+  // Map entity (UI) -> source (IPC/main.js)
+  function mapEntityToSource(entity) {
+    switch (entity) {
+      case 'produtos':       return 'produtos';
+      case 'servicos':       return 'servicos';
+      case 'clientes':       return 'clifor';
+      case 'fornecedores':   return 'clifor';
+      case 'empresas':       return 'empresa';
+      default:               return 'produtos'; // fallback (mesmo do main)
+    }
+  }
 
   function close() {
     modal.style.display = 'none';
@@ -115,24 +122,27 @@
     modal.style.display = 'flex';
     elQ.focus();
 
-    // Lista tudo por padrão
+    // Lista tudo ao abrir
     search('');
+  }
+
+  // ===== Busca (com debounce) =====
+  let tDebounce = null;
+  function scheduleSearch() {
+    clearTimeout(tDebounce);
+    tDebounce = setTimeout(() => search(elQ.value || ''), 180);
   }
 
   async function search(qRaw) {
     if (!current) return;
     const q = String(qRaw || '').trim();
 
-    // >>> ALTERAÇÃO: quando houver filtro, usamos SEMPRE 'contains' (LIKE '%q%')
-    const mode = q ? 'contains' : 'all';
-
     elBody.innerHTML = `<tr><td id="lk-loading" colspan="3">Carregando...</td></tr>`;
 
     try {
       const rows = await ipcRenderer.invoke('lookup:search', {
-        entity: current.entity,
-        q,
-        mode,
+        source: mapEntityToSource(current.entity), // <-- compatível com seu main.js
+        term: q,                                   // <-- compatível com seu main.js
         limit: 50
       });
 
@@ -156,7 +166,7 @@
             <td class="col-val">${Number(r.valorvenda||0).toFixed(2)}</td>
           </tr>`).join('');
       } else {
-        // clientes / fornecedores / empresas
+        // clientes / fornecedores / empresas (clifor/empresa)
         elBody.innerHTML = rows.map(r => `
           <tr data-id="${r.chave}" data-label="${r.codigo} - ${r.nome}">
             <td class="col-codigo">${r.codigo}</td>
@@ -180,28 +190,25 @@
     close();
   }
 
-  // Eventos
+  // ===== Eventos =====
   elBtn.addEventListener('click', () => search(elQ.value || ''));
   elQ.addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter') {
-      // Enter SEMPRE pesquisa, não seleciona
+      // Enter faz busca (não seleciona)
       search(elQ.value || '');
     }
   });
+  elQ.addEventListener('input', scheduleSearch);
   elClose.addEventListener('click', close);
-
+  modal.addEventListener('click', (ev) => { if (ev.target === modal) close(); });
   document.addEventListener('keydown', (ev) => {
-    // Esc fecha
     if (ev.key === 'Escape' && modal.style.display === 'flex') close();
   });
-
-  // Clicar fora fecha
-  modal.addEventListener('click', (ev) => { if (ev.target === modal) close(); });
 
   // API global
   window.openLookup = open;
 
-  // Atalho F8 contextual (mantido)
+  // F8 contextual (usa data-lookup + data-target-id do input focado)
   document.addEventListener('keydown', (ev) => {
     if (ev.key !== 'F8') return;
     const el = document.activeElement;

@@ -9,7 +9,8 @@ window.renderCadastroEntradaProd = function () {
             <div>
               <label class="label">Fornecedor*</label>
               <div style="display:flex; gap:6px">
-                <input class="input" id="entp-forn" placeholder="F8 para pesquisar" data-lookup="fornecedores" data-target-id="entp-forn-id" />
+                <input class="input" id="entp-forn" placeholder="F8 para pesquisar"
+                       data-lookup="fornecedores" data-target-id="entp-forn-id" />
                 <button type="button" class="button outline" id="entp-forn-lupa" title="Pesquisar (F8)">🔎</button>
               </div>
               <input type="hidden" id="entp-forn-id" />
@@ -30,8 +31,9 @@ window.renderCadastroEntradaProd = function () {
 
           <div>
             <label class="label">Produto</label>
-            <div style="display:flex; gap:6px; max-width:520px">
-              <input class="input" id="entp-prod" placeholder="F8 para pesquisar" data-lookup="produtos" data-target-id="entp-prod-id" />
+            <div style="display:flex; gap:6px; max-width:620px">
+              <input class="input" id="entp-prod" placeholder="F8 para pesquisar"
+                     data-lookup="produtos" data-target-id="entp-prod-id" />
               <button type="button" class="button" id="entp-add-prod">Adicionar</button>
               <button type="button" class="button outline" id="entp-prod-lupa" title="Pesquisar (F8)">🔎</button>
             </div>
@@ -39,11 +41,18 @@ window.renderCadastroEntradaProd = function () {
           </div>
 
           <div class="card" style="margin-top:12px">
-            <h4 style="margin-bottom:8px">Itens de Produto</h4>
-            <table class="table">
-              <thead><tr><th>Código/Produto</th><th style="width:90px">Ação</th></tr></thead>
+            <h4 style="margin:0 0 8px 0">Itens de Produto</h4>
+            <table class="table" style="--td-pad:10px">
+              <thead>
+                <tr>
+                  <th style="width:130px">Código</th>
+                  <th>Produto</th>
+                  <th style="width:120px;text-align:right">Ação</th>
+                </tr>
+              </thead>
               <tbody id="entp-itens"></tbody>
             </table>
+            <div id="entp-empty" style="padding:10px 12px; color:#78909c; display:none">Sem itens</div>
           </div>
 
           <div class="actions" style="margin-top:12px; gap:8px">
@@ -56,35 +65,52 @@ window.renderCadastroEntradaProd = function () {
     afterRender() {
       const { ipcRenderer } = require('electron');
 
+      // Estado local
       let fornecedorId = null;
       let entradaChave = null;
-      const itens = []; // {id, label, rowId}
+      const itens = []; // [{id, codigo, nome, rowId}]
 
+      // Helpers DOM
       const $ = (id) => document.getElementById(id);
-      const render = () => {
+
+      // Renderização do grid
+      function renderGrid() {
         const body = $('entp-itens');
+        const empty = $('entp-empty');
+
         if (!itens.length) {
-          body.innerHTML = `<tr><td colspan="2" style="text-align:center;color:#78909c;background:#fff">Sem itens</td></tr>`;
+          body.innerHTML = '';
+          empty.style.display = 'block';
           return;
         }
-        body.innerHTML = itens.map(it => `
+        empty.style.display = 'none';
+        body.innerHTML = itens.map((it) => `
           <tr>
-            <td>${it.label}</td>
-            <td><button class="button outline btn-rem" data-id="${it.rowId}">Remover</button></td>
+            <td>${it.codigo}</td>
+            <td>${it.nome}</td>
+            <td style="text-align:right">
+              <button class="button outline btn-rem" data-id="${it.rowId}">Remover</button>
+            </td>
           </tr>
         `).join('');
-        body.querySelectorAll('.btn-rem').forEach(btn => {
+
+        body.querySelectorAll('.btn-rem').forEach((btn) => {
           btn.addEventListener('click', async () => {
             try {
-              await ipcRenderer.invoke('movs:entrada:remProd', { itementradaprod_chave: Number(btn.dataset.id) });
-              const ix = itens.findIndex(x => x.rowId === Number(btn.dataset.id));
+              const rowId = Number(btn.dataset.id);
+              await ipcRenderer.invoke('movs:entrada:remProd', { itementradaprod_chave: rowId });
+              const ix = itens.findIndex(x => x.rowId === rowId);
               if (ix >= 0) itens.splice(ix, 1);
-              render();
-            } catch (e) { toast('Erro ao remover: ' + e.message, true); }
+              renderGrid();
+              toast('Item removido.');
+            } catch (e) {
+              toast('Erro ao remover: ' + e.message, true);
+            }
           });
         });
-      };
+      }
 
+      // Reset
       function resetAll() {
         $('form-entp').reset();
         fornecedorId = null;
@@ -94,11 +120,12 @@ window.renderCadastroEntradaProd = function () {
         $('entp-prod-id').value = '';
         $('entp-forn').value = '';
         $('entp-prod').value = '';
-        render();
+        renderGrid();
       }
 
       // LUPAS
       $('entp-forn-lupa').addEventListener('click', () => {
+        if (typeof openLookup !== 'function') return toast('Lookup não carregado.', true);
         openLookup('fornecedores', ({ id, label }) => {
           $('entp-forn-id').value = String(id);
           $('entp-forn').value = label;
@@ -106,55 +133,104 @@ window.renderCadastroEntradaProd = function () {
         });
       });
       $('entp-prod-lupa').addEventListener('click', () => {
+        if (typeof openLookup !== 'function') return toast('Lookup não carregado.', true);
         openLookup('produtos', ({ id, label }) => {
           $('entp-prod-id').value = String(id);
           $('entp-prod').value = label;
         });
       });
 
-      // muda fornecedor ao sair do campo (se veio do modal F8, já preenche hidden)
+      // Se o usuário editar o texto do fornecedor manualmente,
+      // usamos o hidden apenas se estiver preenchido.
       $('entp-forn').addEventListener('change', () => {
         fornecedorId = Number($('entp-forn-id').value || '') || null;
       });
 
+      // invoke com fallback (resolve o “No handler registered” caso algo não tenha carregado)
+      async function safeInvoke(channel, payload) {
+        try {
+          return await ipcRenderer.invoke(channel, payload);
+        } catch (err) {
+          // Apenas para o ensure, tentamos um alias muito comum em projetos antigos
+          if (channel === 'movs:entrada:ensure') {
+            try {
+              return await ipcRenderer.invoke('movsentrada:ensure', payload);
+            } catch (err2) {
+              throw err; // devolve o erro original
+            }
+          }
+          throw err;
+        }
+      }
+
+      // Garante um cabeçalho/rascunho de Entrada existente
       async function ensureEntrada() {
         if (entradaChave) return entradaChave;
         if (!fornecedorId) throw new Error('Informe o fornecedor (F8 para pesquisar).');
-        const { chave } = await ipcRenderer.invoke('movs:entrada:ensure', { chaveclifor: fornecedorId, ativo: 1 });
+        const { chave } = await safeInvoke('movs:entrada:ensure', { chaveclifor: fornecedorId, ativo: 1 });
         entradaChave = chave;
         return chave;
       }
 
+      // Clique em “Adicionar”
       $('entp-add-prod').addEventListener('click', async () => {
         try {
           const pid = Number($('entp-prod-id').value || '');
           const label = ($('entp-prod').value || '').trim();
           if (!pid) return toast('Selecione um produto (F8 ou lupa).', true);
+
           await ensureEntrada();
-          const { chave: rowId } = await ipcRenderer.invoke('movs:entrada:addProd', { chaveentrada: entradaChave, chaveproduto: pid });
-          itens.push({ id: pid, label, rowId });
+
+          // Extrai "código - nome" quando possível para quebrar corretamente nas colunas
+          let codigo = '';
+          let nome = label;
+          const dashIx = label.indexOf(' - ');
+          if (dashIx > -1) {
+            codigo = label.substring(0, dashIx).trim();
+            nome   = label.substring(dashIx + 3).trim();
+          }
+
+          const { chave: rowId } = await ipcRenderer.invoke('movs:entrada:addProd', {
+            chaveentrada: entradaChave, chaveproduto: pid
+          });
+
+          itens.push({ id: pid, codigo: codigo || '—', nome, rowId });
           $('entp-prod').value = '';
           $('entp-prod-id').value = '';
-          render();
-        } catch (e) { toast('Erro ao adicionar: ' + e.message, true); }
+          renderGrid();
+          toast('Item adicionado.');
+        } catch (e) {
+          toast('Erro ao adicionar: ' + e.message, true);
+        }
       });
 
+      // Salvar / Finalizar a Entrada
       $('form-entp').addEventListener('submit', async (e) => {
         e.preventDefault();
         try {
           await ensureEntrada();
           const total = Number($('entp-total').value || '0');
           const obs = ($('entp-obs').value || '').trim() || null;
+
           await ipcRenderer.invoke('movs:entrada:finalizar', {
-            chaveentrada: entradaChave, chaveclifor: fornecedorId, total, obs
+            chaveentrada: entradaChave,
+            chaveclifor: fornecedorId,
+            total,
+            obs
           });
+
           toast('Entrada (produtos) salva!');
           resetAll();
-        } catch (err) { toast('Erro ao salvar: ' + err.message, true); }
+        } catch (err) {
+          toast('Erro ao salvar: ' + err.message, true);
+        }
       });
 
+      // Limpar
       $('entp-reset').addEventListener('click', resetAll);
-      render();
+
+      // Inicial
+      renderGrid();
     }
   };
 };

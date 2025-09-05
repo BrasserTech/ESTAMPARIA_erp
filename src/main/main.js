@@ -185,6 +185,19 @@ ipcMain.handle('clientes:criar', async (_e, c) => {
   const { nome, fisjur, tipo, pertenceemp, email, cpf, telefone, endereco } = c || {};
   if (!nome || String(nome).trim() === '') throw new Error('Nome é obrigatório.');
 
+  // --- Normalizações ---
+  // A UI manda 1 (Física) ou 2 (Jurídica). O banco exige 'F' ou 'J'.
+  const fisjurRaw = (fisjur === undefined || fisjur === null) ? 1 : fisjur;
+  const fisjurDB = String(fisjurRaw) === '2' ? 'J' : 'F';
+
+  // Tipo permanece numérico (1=cliente, 2=fornecedor, 3=representante)
+  const tipoNum = Number(tipo) || 1;
+
+  // Enviar CPF/telefone apenas com dígitos (mantém compatibilidade com possíveis constraints)
+  const digits = (s) => (s || '').toString().replace(/\D+/g, '') || null;
+  const cpfDigits = digits(cpf);
+  const telDigits = digits(telefone);
+
   const sql = `
     INSERT INTO clifor (ativo, nome, fisjur, tipo, pertenceemp, email, cpf, telefone, endereco)
     VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8)
@@ -192,12 +205,12 @@ ipcMain.handle('clientes:criar', async (_e, c) => {
   `;
   const params = [
     String(nome).trim(),
-    Number(fisjur) || 1,
-    Number(tipo) || 1,
+    fisjurDB,
+    tipoNum,
     (pertenceemp ? Number(pertenceemp) : null),
     (email ? String(email).trim() : null),
-    (cpf ? String(cpf).trim() : null),
-    (telefone ? String(telefone).trim() : null),
+    cpfDigits,
+    telDigits,
     (endereco ? String(endereco).trim() : null)
   ];
 
