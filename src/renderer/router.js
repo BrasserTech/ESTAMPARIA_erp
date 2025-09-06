@@ -14,9 +14,14 @@ const ROUTE_MAP = {
   '#/cadastro/saidas/produtos': 'renderCadastroSaidaProd',
   '#/cadastro/saidas/servicos': 'renderCadastroSaidaServ',
 
+  // CONSULTAS existentes
   '#/consulta/produtos': 'renderConsultaProdutos',
   '#/consulta/clientes': 'renderConsultaClientes',
   '#/consulta/servicos': 'renderConsultaServicos',
+
+  // >>> ADIÇÃO: novas rotas de consulta (Entradas/Saídas)
+  '#/consulta/entradas': 'renderConsultarEntradas',
+  '#/consulta/saidas': 'renderConsultarSaidas',
 
   '#/relatorios': 'renderRelatorios',
   '#/configuracoes': 'renderConfiguracoes',

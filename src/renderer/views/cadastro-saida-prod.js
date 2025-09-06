@@ -1,171 +1,111 @@
-// Saída de PRODUTOS — versão com ações abaixo das observações,
-// container visual e layout fluido sem sobrar espaço em branco.
+// ===============================
+// cadastro-saida-prod.js
+// ===============================
 window.renderCadastroSaidaProd = function () {
   return {
     title: 'Saída (Produtos)',
     html: `
       <style>
-        /* ------------ CONTÊINER GERAL ------------ */
-        .saip-shell {
-          border: 1px solid #e5eaf0;
-          border-radius: 14px;
-          background: #fff;
-          box-shadow: 0 8px 22px rgba(15,23,42,.06);
-          padding: 14px;
-        }
-        .saip-wrap { display:flex; flex-direction:column; gap:16px; }
+        .sop-shell{border:1px solid #e5eaf0;border-radius:14px;background:#fff;box-shadow:0 8px 22px rgba(15,23,42,.06);padding:14px}
+        .sop-wrap{display:flex;flex-direction:column;gap:16px}
+        .sop-main{display:grid;gap:16px;grid-template-columns:minmax(620px,1.2fr) minmax(420px,.8fr)}
+        @media (max-width:1100px){ .sop-main{grid-template-columns:1fr} }
 
-        /* ------------ GRID SUPERIOR (cadastro) ------------ */
-        /* Colunas: cliente grande (min 420px), total compacto (min 220px) */
-        .section-top {
-          display:grid;
-          grid-template-columns: minmax(420px, 1fr) minmax(220px, .6fr);
-          gap:14px;
-        }
-        .wide { grid-column: 1 / -1; }
+        .card{border:1px solid #e5eaf0;border-radius:12px;background:#fbfdff;box-shadow:0 6px 18px rgba(15,23,42,.05);overflow:hidden}
+        .card-head{padding:10px 14px;border-bottom:1px solid #e5eaf0;font-size:15px;color:#0f172a}
+        .card-body{padding:14px}
 
-        .label { font-weight: 600; color:#0f172a; }
-        .input.numeric { text-align: right; }
-        .textarea { resize: vertical; min-height: 92px; }
+        .label{font-weight:600;color:#0f172a}
+        .input,.textarea,.button,.button.outline{width:100%}
+        .input.numeric{text-align:right}
+        .textarea{resize:vertical;min-height:92px}
 
-        /* ------------ ROW DE PRODUTO ------------ */
-        .product-row {
-          display:grid;
-          grid-template-columns: 1fr auto 140px 160px auto; /* produto | lupa | qtd | vlr unit | botão */
-          gap:10px; align-items:end;
-          padding:10px; border:1px solid #e5eaf0; border-radius:12px; background:#fbfdff;
+        .top-grid{
+          display:grid;gap:14px;align-items:end;
+          grid-template-columns:minmax(520px,2fr) minmax(220px,.9fr)
         }
-        .product-row .field { display:flex; flex-direction:column; gap:6px; }
-        .product-row .field .label { font-size:12px; color:#64748b; }
-        .product-row .btns { display:flex; gap:8px; align-items:center; }
+        @media (max-width:1100px){ .top-grid{grid-template-columns:1fr} }
+        .row-cli{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:end}
 
-        /* Ajuste para telas menores */
-        @media (max-width: 1100px) {
-          .section-top { grid-template-columns: 1fr; }
-          .product-row {
-            grid-template-columns: 1fr auto 140px 160px auto;
-          }
+        .prod-row{
+          display:grid;gap:10px;align-items:end;
+          grid-template-columns:1fr auto 140px 160px auto;
+          padding:10px;border:1px solid #e5eaf0;border-radius:12px;background:#fff
         }
-        @media (max-width: 820px) {
-          .product-row { grid-template-columns: 1fr 1fr; }
-          .product-row .btns { grid-column: 1 / -1; }
-        }
+        .prod-row .field{display:flex;flex-direction:column;gap:6px}
+        .prod-row .field .label{font-size:12px;color:#64748b}
+        .prod-row .btns{display:flex;gap:8px;align-items:center}
+        @media (max-width:880px){ .prod-row{grid-template-columns:1fr 1fr} .prod-row .btns{grid-column:1 / -1} }
 
-        /* ------------ AÇÕES (abaixo das observações) ------------ */
-        .actions-row {
-          display:flex; gap:8px; align-items:center; justify-content:flex-start;
-          padding-top:2px;
-        }
+        .divider{height:1px;background:#e5eaf0;margin:12px 0}
 
-        /* ------------ TABELA INFERIOR ------------ */
-        .items-wrapper { margin-top: 8px; }
-        .items-card {
-          border: 1px solid #e5eaf0;
-          border-radius: 12px;
-          background: #fff;
-          box-shadow: 0 6px 18px rgba(15,23,42,.06);
-          overflow:hidden;
+        .items-card{border:1px solid #e5eaf0;border-radius:12px;background:#fff;box-shadow:0 6px 18px rgba(15,23,42,.06);overflow:hidden}
+        .items-card h4{margin:0;padding:12px 14px;border-bottom:1px solid #e5eaf0;font-size:15px;color:#0f172a}
+        .tbl-wrap{padding:6px 10px 12px 10px}
+        .tbl-grid{width:100%;border-collapse:separate;border-spacing:0}
+        .tbl-grid thead th{
+          background:#f8fafc;color:#0f172a;font-weight:600;font-size:13px;
+          border-bottom:1px solid #e5eaf0;padding:12px 10px;position:sticky;top:0;z-index:1
         }
-        .items-card h4 {
-          margin: 0; padding: 12px 14px;
-          border-bottom: 1px solid #e5eaf0;
-          font-size: 15px; color:#0f172a;
-        }
-        .tbl-wrap { padding: 6px 10px 12px 10px; }
-        .tbl-grid { width: 100%; border-collapse: separate; border-spacing: 0; }
-        .tbl-grid thead th {
-          background: #f8fafc;
-          color: #0f172a;
-          font-weight: 600;
-          font-size: 13px;
-          border-bottom: 1px solid #e5eaf0;
-          padding: 12px 10px;
-          position: sticky; top: 0; z-index: 1;
-        }
-        .tbl-grid tbody td {
-          border-bottom: 1px solid #eef2f7;
-          padding: 12px 10px;
-          color: #0f172a;
-        }
-        .tbl-grid tbody tr:last-child td { border-bottom: none; }
-        .tbl-grid tbody tr:hover { background: #f9fbff; }
-        .txt-right { text-align: right; }
-        .empty-row { text-align:center; color:#64748b; background:#fff; }
+        .tbl-grid tbody td{border-bottom:1px solid #eef2f7;padding:12px 10px;color:#0f172a}
+        .tbl-grid tbody tr:last-child td{border-bottom:none}
+        .tbl-grid tbody tr:hover{background:#f9fbff}
+        .txt-right{text-align:right}
+        .empty-row{text-align:center;color:#64748b;background:#fff}
+        .btn-ghost{background:#fff;border:1px solid #e5eaf0;color:#334155;padding:6px 10px;border-radius:8px;cursor:pointer}
+        .btn-ghost:hover{background:#f8fafc}
 
-        .btn-ghost {
-          background:#fff; border:1px solid #e5eaf0; color:#334155;
-          padding:6px 10px; border-radius:8px; cursor:pointer;
-        }
-        .btn-ghost:hover { background:#f8fafc; }
+        .actions{display:flex;gap:8px;align-items:center;justify-content:flex-start}
       </style>
 
-      <div class="saip-shell">
-        <div class="saip-wrap">
-          <form class="form" id="form-saip" autocomplete="off">
-            <!-- TOPO -->
-            <div class="section-top">
-              <div>
-                <label class="label">Cliente*</label>
-                <div style="display:flex; gap:6px">
-                  <input class="input" id="saip-cli"
-                         placeholder="F8 para pesquisar"
-                         data-lookup="clientes" data-target-id="saip-cli-id" />
-                  <button type="button" class="button outline" id="saip-cli-lupa" title="Pesquisar (F8)">🔎</button>
-                </div>
-                <input type="hidden" id="saip-cli-id" />
-              </div>
-
-              <div>
-                <label class="label">Total (R$)</label>
-                <input class="input numeric" id="saip-total" type="number" step="0.01" min="0" value="0" disabled />
-              </div>
-
-              <div class="wide">
-                <label class="label">Observações</label>
-                <textarea class="textarea" id="saip-obs" rows="3" maxlength="300" placeholder="Detalhes..."></textarea>
-              </div>
-
-              <!-- AÇÕES imediatamente abaixo das observações -->
-              <div class="actions-row wide">
-                <button type="submit" class="button">Salvar Saída</button>
-                <button type="reset" class="button outline" id="saip-reset">Limpar</button>
-              </div>
-
-              <!-- PRODUTO ocupa largura total -->
-              <div class="wide">
-                <label class="label">Produto</label>
-                <div class="product-row">
-                  <div class="field">
-                    <input class="input" id="saip-prod"
-                           placeholder="F8 para pesquisar"
-                           data-lookup="produtos" data-target-id="saip-prod-id" />
+      <div class="sop-shell">
+        <div class="sop-wrap">
+          <form id="form-sop" autocomplete="off">
+            <div class="sop-main">
+              <div class="card">
+                <div class="card-head">Dados gerais da saída</div>
+                <div class="card-body">
+                  <div class="top-grid">
+                    <div>
+                      <label class="label">Cliente*</label>
+                      <div class="row-cli">
+                        <input class="input" id="sop-cli" placeholder="F8 para pesquisar" data-lookup="clientes" data-target-id="sop-cli-id" />
+                        <button type="button" class="button outline" id="sop-cli-lupa" title="Pesquisar (F8)">🔎</button>
+                      </div>
+                      <input type="hidden" id="sop-cli-id"/>
+                    </div>
+                    <div>
+                      <label class="label">Total (R$)</label>
+                      <input class="input numeric" id="sop-total" type="number" step="0.01" min="0" value="0" disabled />
+                    </div>
+                    <div style="grid-column:1 / -1">
+                      <label class="label">Observações</label>
+                      <textarea class="textarea" id="sop-obs" rows="3" maxlength="300" placeholder="Detalhes..."></textarea>
+                    </div>
                   </div>
 
-                  <div class="btns">
-                    <button type="button" class="button outline" id="saip-prod-lupa" title="Pesquisar (F8)">🔎</button>
+                  <div style="margin-top:10px">
+                    <label class="label">Produto</label>
+                    <div class="prod-row">
+                      <div class="field">
+                        <input class="input" id="sop-prod" placeholder="F8 para pesquisar" data-lookup="produtos" data-target-id="sop-prod-id" />
+                        <input type="hidden" id="sop-prod-id"/>
+                      </div>
+                      <div class="btns"><button type="button" class="button outline" id="sop-prod-lupa" title="Pesquisar (F8)">🔎</button></div>
+                      <div class="field"><label class="label">Quantidade</label><input class="input numeric" id="sop-qtde" type="number" step="0.001" min="0.001" value="1" /></div>
+                      <div class="field"><label class="label">Valor unitário (R$)</label><input class="input numeric" id="sop-vu" type="number" step="0.01" min="0" value="0" /></div>
+                      <div class="btns"><button type="button" class="button" id="sop-add-prod" title="Adicionar (Enter)">Adicionar</button></div>
+                    </div>
                   </div>
 
-                  <div class="field">
-                    <label class="label">Quantidade</label>
-                    <input class="input numeric" id="saip-qtde" type="number" step="0.001" min="0.001" value="1" />
+                  <div class="divider"></div>
+                  <div class="actions">
+                    <button type="submit" class="button">Salvar Saída</button>
+                    <button type="reset" class="button outline" id="sop-reset">Limpar</button>
                   </div>
-
-                  <div class="field">
-                    <label class="label">Valor unitário (R$)</label>
-                    <input class="input numeric" id="saip-vu" type="number" step="0.01" min="0" value="0" />
-                  </div>
-
-                  <div class="btns">
-                    <button type="button" class="button" id="saip-add-prod" title="Adicionar (Enter)">Adicionar</button>
-                  </div>
-
-                  <input type="hidden" id="saip-prod-id" />
                 </div>
               </div>
-            </div>
 
-            <!-- TABELA INFERIOR -->
-            <div class="items-wrapper">
               <div class="items-card">
                 <h4>Itens de Produto</h4>
                 <div class="tbl-wrap">
@@ -179,7 +119,7 @@ window.renderCadastroSaidaProd = function () {
                         <th style="width:110px">Ação</th>
                       </tr>
                     </thead>
-                    <tbody id="saip-itens"></tbody>
+                    <tbody id="sop-itens"></tbody>
                   </table>
                 </div>
               </div>
@@ -190,165 +130,130 @@ window.renderCadastroSaidaProd = function () {
     `,
     afterRender() {
       const { ipcRenderer } = require('electron');
+      const $  = (id) => document.getElementById(id);
+      const f2 = (n) => Number(n||0).toFixed(2);
+      const f3 = (n) => Number(n||0).toFixed(3);
 
-      let clienteId = null;
-      let saidaChave = null;
-      const itens = []; // { id, label, qtde, vu, vt, rowId }
+      // Lista grande de aliases para funcionar em qualquer nomenclatura do IPC
+      const ENSURE_ALIASES     = ['movssaida:ensure','movs:saida:createHeader','movs:saidaensure','movssaida:ensure','saidas:ensure','movs:ensure:saida'];
+      const ADD_ALIASES        = ['movssaida:addProd','movs:saida:addProduto','movs:saida:addprod','saidas:addProd'];
+      const REM_ALIASES        = ['movssaida:remProd','movs:saida:removeProd','movs:saida:remProduto','saidas:remProd'];
+      const FINALIZAR_ALIASES  = ['movssaida:finalizar','movs:saida:close','saidas:finalizar'];
 
-      const $ = (id) => document.getElementById(id);
-      const fmt2 = (n) => Number(n || 0).toFixed(2);
-      const fmt3 = (n) => Number(n || 0).toFixed(3);
-
-      function recalcTotal() {
-        const tot = itens.reduce((acc, it) => acc + Number(it.vt || 0), 0);
-        $('saip-total').value = fmt2(tot);
+      async function safeInvoke(channel, payload, aliases=[]) {
+        try { return await ipcRenderer.invoke(channel, payload); }
+        catch (err) {
+          for (const alt of aliases) {
+            try { return await ipcRenderer.invoke(alt, payload); } catch {}
+          }
+          throw err;
+        }
       }
 
-      function renderGrid() {
-        const body = $('saip-itens');
-        if (!itens.length) {
-          body.innerHTML = `
-            <tr>
-              <td class="empty-row" colspan="5">Itens adicionados serão exibidos nessa tabela</td>
-            </tr>`;
-          recalcTotal();
-          return;
+      let clienteId=null, saidaChave=null;
+      const itens=[];
+
+      function recalc(){ $('sop-total').value = f2(itens.reduce((a,i)=>a + Number(i.vt||0), 0)); }
+      function render(){
+        const body = $('sop-itens');
+        if (!itens.length){
+          body.innerHTML = '<tr><td class="empty-row" colspan="5">Itens adicionados serão exibidos nessa tabela</td></tr>';
+          return recalc();
         }
-        body.innerHTML = itens.map(it => `
+        body.innerHTML = itens.map(it=>`
           <tr>
             <td>${it.label}</td>
-            <td class="txt-right">${fmt3(it.qtde)}</td>
-            <td class="txt-right">${fmt2(it.vu)}</td>
-            <td class="txt-right">${fmt2(it.vt)}</td>
+            <td class="txt-right">${f3(it.qtde)}</td>
+            <td class="txt-right">${f2(it.vu)}</td>
+            <td class="txt-right">${f2(it.vt)}</td>
             <td><button type="button" class="btn-ghost btn-rem" data-id="${it.rowId}">Remover</button></td>
-          </tr>
-        `).join('');
-
-        body.querySelectorAll('.btn-rem').forEach(btn => {
-          btn.addEventListener('click', async () => {
-            try {
-              await ipcRenderer.invoke('movs:saida:remProd', { itemsaidaprod_chave: Number(btn.dataset.id) });
-              const ix = itens.findIndex(x => x.rowId === Number(btn.dataset.id));
-              if (ix >= 0) itens.splice(ix, 1);
-              renderGrid();
-            } catch (e) {
-              toast('Erro ao remover: ' + e.message, true);
-            }
-          });
+          </tr>`).join('');
+        body.querySelectorAll('.btn-rem').forEach(b=>b.onclick=async()=>{
+          try{
+            const rowId = Number(b.dataset.id);
+            await safeInvoke('movs:saida:remProd',{ itemsaidaprod_chave: rowId }, REM_ALIASES);
+            const ix = itens.findIndex(x=>x.rowId===rowId); if(ix>=0) itens.splice(ix,1);
+            render();
+          }catch(e){ toast('Erro ao remover: '+e.message, true); }
         });
-
-        recalcTotal();
+        recalc();
       }
 
-      function resetAll() {
-        $('form-saip').reset();
-        $('saip-total').value = '0.00';
-        clienteId = null;
-        saidaChave = null;
-        itens.length = 0;
-        ['saip-cli-id','saip-prod-id','saip-cli','saip-prod'].forEach(id => { $(id).value = ''; });
-        $('saip-qtde').value = '1';
-        $('saip-vu').value = '0';
-        renderGrid();
-        $('saip-cli').focus();
+      function reset(){
+        $('form-sop').reset(); clienteId=null; saidaChave=null; itens.length=0;
+        ['sop-cli','sop-cli-id','sop-prod','sop-prod-id'].forEach(i=>$(i).value='');
+        $('sop-qtde').value='1'; $('sop-vu').value='0'; $('sop-total').value='0.00';
+        render(); $('sop-cli').focus();
       }
 
-      // LOOKUP + foco
-      $('saip-cli-lupa').addEventListener('click', () => {
-        if (typeof openLookup !== 'function') return toast('Lookup não carregado.', true);
-        openLookup('clientes', ({ id, label }) => {
-          $('saip-cli-id').value = String(id);
-          $('saip-cli').value = label;
-          clienteId = id;
-          $('saip-prod').focus();
-        });
-        $('saip-cli').focus();
-      });
-
-      $('saip-prod-lupa').addEventListener('click', () => {
-        if (typeof openLookup !== 'function') return toast('Lookup não carregado.', true);
-        openLookup('produtos', ({ id, label }) => {
-          $('saip-prod-id').value = String(id);
-          $('saip-prod').value = label;
-          $('saip-qtde').focus();
-          $('saip-qtde').select?.();
-        });
-        $('saip-prod').focus();
-      });
-
-      $('saip-cli').addEventListener('change', () => {
-        clienteId = Number($('saip-cli-id').value || '') || null;
-      });
-
-      async function ensureSaida() {
+      async function ensure(){
         if (saidaChave) return saidaChave;
         if (!clienteId) throw new Error('Informe o cliente.');
-        const { chave } = await ipcRenderer.invoke('movs:saida:ensure', { chaveclifor: clienteId, ativo: 1 });
-        saidaChave = chave;
-        return chave;
+        const { chave } = await safeInvoke('movs:saida:ensure', { chaveclifor: clienteId, ativo: 1 }, ENSURE_ALIASES);
+        saidaChave = chave; return chave;
       }
 
-      // Enter adiciona item
-      const addFromKeyboard = (ev) => {
-        if (ev.key === 'Enter') {
-          ev.preventDefault();
-          $('saip-add-prod').click();
-        }
+      // lookups
+      $('sop-cli-lupa').onclick=()=>{
+        if (typeof openLookup!=='function') return toast('Lookup não carregado.', true);
+        openLookup('clientes',({id,label})=>{
+          $('sop-cli-id').value=String(id); $('sop-cli').value=label; clienteId=id; $('sop-prod').focus();
+        });
       };
-      $('saip-prod').addEventListener('keydown', addFromKeyboard);
-      $('saip-qtde').addEventListener('keydown', addFromKeyboard);
-      $('saip-vu').addEventListener('keydown', addFromKeyboard);
+      $('sop-prod-lupa').onclick=()=>{
+        if (typeof openLookup!=='function') return toast('Lookup não carregado.', true);
+        openLookup('produtos',({id,label})=>{
+          $('sop-prod-id').value=String(id); $('sop-prod').value=label; $('sop-qtde').focus(); $('sop-qtde').select?.();
+        });
+      };
+      $('sop-cli').addEventListener('change',()=>{ clienteId = Number($('sop-cli-id').value || '') || null; });
 
-      $('saip-add-prod').addEventListener('click', async () => {
-        try {
-          const pid   = Number($('saip-prod-id').value || '');
-          const label = ($('saip-prod').value || '').trim();
-          const qtde  = Number($('saip-qtde').value || '0');
-          const vu    = Number($('saip-vu').value || '0');
-          if (!pid)          return toast('Selecione um produto (F8 ou lupa).', true);
-          if (!(qtde > 0))   return toast('Informe uma quantidade válida.', true);
-          if (!(vu   >= 0))  return toast('Informe um valor unitário válido.', true);
+      const addKey=(ev)=>{ if(ev.key==='Enter'){ ev.preventDefault(); $('sop-add-prod').click(); } };
+      ['sop-prod','sop-qtde','sop-vu'].forEach(id=>$(id).addEventListener('keydown',addKey));
 
-          await ensureSaida();
-          const { chave: rowId } = await ipcRenderer.invoke('movs:saida:addProd', {
-            chavesaida: saidaChave,
-            chaveproduto: pid,
-            qtde,
-            valorunit: vu
-          });
+      $('sop-add-prod').onclick=async()=>{
+        try{
+          const pid  = Number($('sop-prod-id').value||'');
+          const label= ($('sop-prod').value||'').trim();
+          const qtde = Number($('sop-qtde').value||'0');
+          const vu   = Number($('sop-vu').value||'0');
+          if(!pid)        return toast('Selecione um produto (F8 ou lupa).',true);
+          if(!(qtde>0))   return toast('Informe uma quantidade válida.',true);
+          if(!(vu>=0))    return toast('Informe um valor unitário válido.',true);
 
-          itens.push({ id: pid, label, qtde, vu, vt: qtde * vu, rowId });
-          $('saip-prod').value = '';
-          $('saip-prod-id').value = '';
-          $('saip-prod').focus();
-          renderGrid();
-        } catch (e) {
-          toast('Erro ao adicionar: ' + e.message, true);
-        }
-      });
+          await ensure();
 
-      $('form-saip').addEventListener('submit', async (e) => {
+          const res = await safeInvoke('movs:saida:addProd',
+            { chavesaida: saidaChave, chaveproduto: pid, qtde, valorunit: vu },
+            ADD_ALIASES
+          );
+          const rowId = res?.chave;
+          const vuDb  = (res?.valorunit ?? vu);
+          const vtDb  = (res?.valortotal ?? (qtde * vuDb));
+
+          itens.push({ id: pid, label, qtde, vu: vuDb, vt: vtDb, rowId });
+          $('sop-prod').value=''; $('sop-prod-id').value=''; $('sop-prod').focus();
+          render();
+        }catch(e){ toast('Erro ao adicionar: '+e.message, true); }
+      };
+
+      $('form-sop').onsubmit=async(e)=>{
         e.preventDefault();
-        try {
-          await ensureSaida();
-          const obs = ($('saip-obs').value || '').trim() || null;
-          await ipcRenderer.invoke('movs:saida:finalizar', {
-            chavesaida: saidaChave,
-            chaveclifor: clienteId,
-            obs
-          });
+        try{
+          await ensure();
+          const obs = ($('sop-obs').value||'').trim() || null;
+          await safeInvoke('movs:saida:finalizar',
+            { chavesaida: saidaChave, chaveclifor: clienteId, obs },
+            FINALIZAR_ALIASES
+          );
           toast('Saída (produtos) salva!');
-          resetAll();
-        } catch (err) {
-          toast('Erro ao salvar: ' + err.message, true);
-        }
-      });
+          reset();
+        }catch(err){ toast('Erro ao salvar: '+err.message, true); }
+      };
 
-      $('saip-reset').addEventListener('click', resetAll);
+      $('sop-reset').onclick=reset;
 
-      // inicial
-      renderGrid();
-      $('saip-cli').focus();
+      render(); $('sop-cli').focus();
     }
   };
 };
