@@ -20,18 +20,11 @@ window.renderCadastroSaidaServ = function () {
         .input.numeric{text-align:right}
         .textarea{resize:vertical;min-height:92px}
 
-        .top-grid{
-          display:grid;gap:14px;align-items:end;
-          grid-template-columns:minmax(520px,2fr) minmax(220px,.9fr)
-        }
+        .top-grid{display:grid;gap:14px;align-items:end;grid-template-columns:minmax(520px,2fr) minmax(220px,.9fr)}
         @media (max-width:1100px){ .top-grid{grid-template-columns:1fr} }
         .row-cli{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:end}
 
-        .srv-row{
-          display:grid;gap:10px;align-items:end;
-          grid-template-columns:1fr auto 140px 160px auto;
-          padding:10px;border:1px solid #e5eaf0;border-radius:12px;background:#fff
-        }
+        .srv-row{display:grid;gap:10px;align-items:end;grid-template-columns:1fr auto 140px 160px auto;padding:10px;border:1px solid #e5eaf0;border-radius:12px;background:#fff}
         .srv-row .field{display:flex;flex-direction:column;gap:6px}
         .srv-row .field .label{font-size:12px;color:#64748b}
         .srv-row .btns{display:flex;gap:8px;align-items:center}
@@ -43,10 +36,7 @@ window.renderCadastroSaidaServ = function () {
         .items-card h4{margin:0;padding:12px 14px;border-bottom:1px solid #e5eaf0;font-size:15px;color:#0f172a}
         .tbl-wrap{padding:6px 10px 12px 10px}
         .tbl-grid{width:100%;border-collapse:separate;border-spacing:0}
-        .tbl-grid thead th{
-          background:#f8fafc;color:#0f172a;font-weight:600;font-size:13px;
-          border-bottom:1px solid #e5eaf0;padding:12px 10px;position:sticky;top:0;z-index:1
-        }
+        .tbl-grid thead th{background:#f8fafc;color:#0f172a;font-weight:600;font-size:13px;border-bottom:1px solid #e5eaf0;padding:12px 10px;position:sticky;top:0;z-index:1}
         .tbl-grid tbody td{border-bottom:1px solid #eef2f7;padding:12px 10px;color:#0f172a}
         .tbl-grid tbody tr:last-child td{border-bottom:none}
         .tbl-grid tbody tr:hover{background:#f9fbff}
@@ -55,6 +45,7 @@ window.renderCadastroSaidaServ = function () {
         .btn-ghost{background:#fff;border:1px solid #e5eaf0;color:#334155;padding:6px 10px;border-radius:8px;cursor:pointer}
         .btn-ghost:hover{background:#f8fafc}
         .actions{display:flex;gap:8px;align-items:center;justify-content:flex-start}
+        .status{display:none;margin:6px 0 0 0;padding:8px 10px;border-radius:8px;font-size:14px}
       </style>
 
       <div class="sos-shell">
@@ -64,6 +55,8 @@ window.renderCadastroSaidaServ = function () {
               <div class="card">
                 <div class="card-head">Dados gerais da saída</div>
                 <div class="card-body">
+                  <div id="sos-status" class="status"></div>
+
                   <div class="top-grid">
                     <div>
                       <label class="label">Cliente*</label>
@@ -133,22 +126,26 @@ window.renderCadastroSaidaServ = function () {
       const f2 = (n) => Number(n||0).toFixed(2);
       const f3 = (n) => Number(n||0).toFixed(3);
 
+      // --- feedback (fallback se toast não existir) ---
+      const statusBox = $('sos-status');
+      function notify(msg, isError=false){
+        if (typeof toast === 'function') { toast(msg, !!isError); return; }
+        statusBox.style.display = 'block';
+        statusBox.style.background = isError ? '#fee2e2' : '#ecfdf5';
+        statusBox.style.color = isError ? '#991b1b' : '#065f46';
+        statusBox.style.border = isError ? '1px solid #fecaca' : '1px solid #a7f3d0';
+        statusBox.textContent = msg;
+        clearTimeout(notify._t); notify._t = setTimeout(()=>{ statusBox.style.display='none'; }, 3000);
+      }
+
       // Estados de UI
       let isSaving = false;
       let isAdding = false;
       const btnSalvar = $('sos-salvar');
       const btnAdd    = $('sos-add-serv');
 
-      function setSaving(state){
-        isSaving = state;
-        btnSalvar.disabled = state;
-        btnSalvar.textContent = state ? 'Salvando…' : 'Salvar Saída';
-      }
-      function setAdding(state){
-        isAdding = state;
-        btnAdd.disabled = state;
-        btnAdd.textContent = state ? 'Adicionando…' : 'Adicionar';
-      }
+      function setSaving(state){ isSaving = state; btnSalvar.disabled = state; btnSalvar.textContent = state ? 'Salvando…' : 'Salvar Saída'; }
+      function setAdding(state){ isAdding = state; btnAdd.disabled = state; btnAdd.textContent = state ? 'Adicionando…' : 'Adicionar'; }
 
       // Canais (mantidos + aliases)
       const ENSURE_ALIASES = ['movssaida:ensure','movs:saida:createHeader','movs:saidaensure','movssaida:ensure','saidas:ensure','movs:ensure:saida'];
@@ -158,11 +155,7 @@ window.renderCadastroSaidaServ = function () {
 
       async function safeInvoke(channel, payload, aliases=[]) {
         try { return await ipcRenderer.invoke(channel, payload); }
-        catch (err) {
-          // tenta aliases apenas se falhar
-          for (const alt of aliases) { try { return await ipcRenderer.invoke(alt, payload); } catch {} }
-          throw err;
-        }
+        catch (err) { for (const alt of aliases) { try { return await ipcRenderer.invoke(alt, payload); } catch {} } throw err; }
       }
 
       let clienteId=null, saidaChave=null;
@@ -171,10 +164,7 @@ window.renderCadastroSaidaServ = function () {
       function recalc(){ $('sos-total').value = f2(itens.reduce((a,i)=>a+Number(i.vt||0),0)); }
       function render(){
         const body=$('sos-itens');
-        if(!itens.length){
-          body.innerHTML='<tr><td class="empty-row" colspan="5">Itens adicionados serão exibidos nessa tabela</td></tr>';
-          return recalc();
-        }
+        if(!itens.length){ body.innerHTML='<tr><td class="empty-row" colspan="5">Itens adicionados serão exibidos nessa tabela</td></tr>'; return recalc(); }
         body.innerHTML=itens.map(it=>`
           <tr>
             <td>${it.label}</td>
@@ -189,7 +179,7 @@ window.renderCadastroSaidaServ = function () {
             await safeInvoke('movs:saida:remServ',{ itemsaidaserv_chave: rowId }, REM_ALIASES);
             const ix=itens.findIndex(x=>x.rowId===rowId); if(ix>=0) itens.splice(ix,1);
             render();
-          }catch(e){ toast('Erro ao remover: '+(e?.message||String(e)),true); }
+          }catch(e){ notify('Erro ao remover: '+(e?.message||String(e)), true); }
         });
         recalc();
       }
@@ -208,20 +198,16 @@ window.renderCadastroSaidaServ = function () {
 
       // Lookups
       $('sos-cli-lupa').onclick=()=>{
-        if(typeof openLookup!=='function') return toast('Lookup não carregado.',true);
-        openLookup('clientes',({id,label})=>{
-          $('sos-cli-id').value=String(id); $('sos-cli').value=label; clienteId=id; $('sos-serv').focus();
-        });
+        if(typeof openLookup!=='function') return notify('Lookup não carregado.', true);
+        openLookup('clientes',({id,label})=>{ $('sos-cli-id').value=String(id); $('sos-cli').value=label; clienteId=id; $('sos-serv').focus(); });
       };
       $('sos-serv-lupa').onclick=()=>{
-        if(typeof openLookup!=='function') return toast('Lookup não carregado.',true);
-        openLookup('servicos',({id,label})=>{
-          $('sos-serv-id').value=String(id); $('sos-serv').value=label; $('sos-qtde').focus(); $('sos-qtde').select?.();
-        });
+        if(typeof openLookup!=='function') return notify('Lookup não carregado.', true);
+        openLookup('servicos',({id,label})=>{ $('sos-serv-id').value=String(id); $('sos-serv').value=label; $('sos-qtde').focus(); $('sos-qtde').select?.(); });
       };
       $('sos-cli').addEventListener('change',()=>{ clienteId=Number($('sos-cli-id').value||'')||null; });
 
-      // Atalho F8 abre lookup do campo focado
+      // Atalho F8
       window.addEventListener('keydown',(ev)=>{
         if(ev.key==='F8'){
           const el=document.activeElement;
@@ -241,9 +227,9 @@ window.renderCadastroSaidaServ = function () {
           const label = ($('sos-serv').value||'').trim();
           const qtde = Number($('sos-qtde').value||'0');
           const vu   = Number($('sos-vu').value||'0');
-          if(!sid) return toast('Selecione um serviço (F8 ou lupa).',true);
-          if(!(qtde>0)) return toast('Informe uma quantidade válida.',true);
-          if(!(vu>=0))  return toast('Informe um valor unitário válido.',true);
+          if(!sid) return notify('Selecione um serviço (F8 ou lupa).',true);
+          if(!(qtde>0)) return notify('Informe uma quantidade válida.',true);
+          if(!(vu>=0))  return notify('Informe um valor unitário válido.',true);
 
           await ensure();
           setAdding(true);
@@ -259,38 +245,46 @@ window.renderCadastroSaidaServ = function () {
           itens.push({id:sid,label,qtde,vu:vuDb,vt:vtDb,rowId});
           $('sos-serv').value=''; $('sos-serv-id').value=''; $('sos-serv').focus();
           render();
-          toast('Item adicionado.');
+          notify('Item adicionado.');
         }catch(e){
-          toast('Erro ao adicionar: '+(e?.message||String(e)),true);
+          notify('Erro ao adicionar: '+(e?.message||String(e)),true);
         }finally{
           setAdding(false);
         }
       };
 
-      // Salvar / Finalizar
-      $('form-sos').onsubmit=async(e)=>{
-        e.preventDefault();
+      // --- salvar: handler único, chamado pelo submit e pelo click ---
+      async function handleSave(){
         if(isSaving) return;
         try{
+          if(!clienteId) return notify('Informe o cliente.', true);
+          if(!itens.length) return notify('Inclua ao menos um serviço antes de salvar.', true);
+
           await ensure();
           const obs = ($('sos-obs').value||'').trim()||null;
+          const total = itens.reduce((a,i)=> a + Number(i.vt||0), 0);
 
           setSaving(true);
           await safeInvoke('movs:saida:finalizar',
-            { chavesaida:saidaChave, chaveclifor:clienteId, obs },
+            { chavesaida:saidaChave, chaveclifor:clienteId, total, obs },
             FINAL_ALIASES
           );
-          toast('Saída (serviços) salva!');
+
+          notify('Saída (serviços) salva!');
           reset();
         }catch(err){
-          toast('Erro ao salvar: '+(err?.message||String(err)),true);
+          notify('Erro ao salvar: '+(err?.message||String(err)), true);
         }finally{
           setSaving(false);
         }
-      };
+      }
+
+      // Integra os dois gatilhos
+      $('form-sos').addEventListener('submit', (e)=>{ e.preventDefault(); handleSave(); });
+      $('sos-salvar').addEventListener('click', (e)=>{ e.preventDefault(); handleSave(); });
 
       // Limpar
-      $('sos-reset').onclick=(e)=>{ e.preventDefault(); reset(); toast('Formulário limpo.'); };
+      $('sos-reset').onclick=(e)=>{ e.preventDefault(); reset(); notify('Formulário limpo.'); };
 
       // Inicial
       render(); $('sos-cli').focus();

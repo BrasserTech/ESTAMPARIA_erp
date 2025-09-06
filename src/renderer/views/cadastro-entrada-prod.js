@@ -8,11 +8,7 @@ window.renderCadastroEntradaProd = function () {
       <style>
         .enp-shell{border:1px solid #e5eaf0;border-radius:14px;background:#fff;box-shadow:0 8px 22px rgba(15,23,42,.06);padding:14px}
         .enp-wrap{display:flex;flex-direction:column;gap:16px}
-        /* grid principal: esquerda (form) + direita (itens) */
-        .enp-main{
-          display:grid;gap:16px;
-          grid-template-columns:minmax(620px,1.2fr) minmax(420px,.8fr)
-        }
+        .enp-main{display:grid;gap:16px;grid-template-columns:minmax(620px,1.2fr) minmax(420px,.8fr)}
         @media (max-width:1100px){ .enp-main{grid-template-columns:1fr} }
 
         .card{border:1px solid #e5eaf0;border-radius:12px;background:#fbfdff;box-shadow:0 6px 18px rgba(15,23,42,.05);overflow:hidden}
@@ -24,22 +20,12 @@ window.renderCadastroEntradaProd = function () {
         .input.numeric{text-align:right}
         .textarea{resize:vertical;min-height:92px}
 
-        /* topo: fornecedor grande + total compacto */
-        .top-grid{
-          display:grid;gap:14px;align-items:end;
-          grid-template-columns:minmax(520px,2fr) minmax(220px,.9fr)
-        }
+        .top-grid{display:grid;gap:14px;align-items:end;grid-template-columns:minmax(520px,2fr) minmax(220px,.9fr)}
         @media (max-width:1100px){ .top-grid{grid-template-columns:1fr} }
 
-        /* linha de fornecedor: input expansível + lupa ao lado */
         .row-forn{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:end}
 
-        /* produto: input + lupa + qtd + unit + botão adicionar */
-        .prod-row{
-          display:grid;gap:10px;align-items:end;
-          grid-template-columns:1fr auto 140px 160px auto;
-          padding:10px;border:1px solid #e5eaf0;border-radius:12px;background:#fff
-        }
+        .prod-row{display:grid;gap:10px;align-items:end;grid-template-columns:1fr auto 140px 160px auto;padding:10px;border:1px solid #e5eaf0;border-radius:12px;background:#fff}
         .prod-row .field{display:flex;flex-direction:column;gap:6px}
         .prod-row .field .label{font-size:12px;color:#64748b}
         .prod-row .btns{display:flex;gap:8px;align-items:center}
@@ -47,7 +33,6 @@ window.renderCadastroEntradaProd = function () {
 
         .divider{height:1px;background:#e5eaf0;margin:12px 0}
 
-        /* tabela itens (coluna da direita) */
         .items-card{border:1px solid #e5eaf0;border-radius:12px;background:#fff;box-shadow:0 6px 18px rgba(15,23,42,.06);overflow:hidden}
         .items-card h4{margin:0;padding:12px 14px;border-bottom:1px solid #e5eaf0;font-size:15px;color:#0f172a}
         .tbl-wrap{padding:6px 10px 12px 10px}
@@ -145,12 +130,7 @@ window.renderCadastroEntradaProd = function () {
 
       // ===== Toast robusto (fallback) =====
       function safeToast(message, isError = false) {
-        try {
-          if (typeof window.toast === 'function') {
-            window.toast(message, isError);
-            return;
-          }
-        } catch (_) {}
+        try { if (typeof window.toast === 'function') return window.toast(message, isError); } catch (_) {}
         let box = document.getElementById('__toast_fallback_box__');
         if (!box) {
           box = document.createElement('div');
@@ -189,7 +169,7 @@ window.renderCadastroEntradaProd = function () {
             msg.includes('not a function');
           if (isNoHandler && Array.isArray(aliases) && aliases.length) {
             for (const alt of aliases) {
-              try { return await ipcRenderer.invoke(alt, payload); } catch { /* tenta próximo */ }
+              try { return await ipcRenderer.invoke(alt, payload); } catch {}
             }
           }
           throw err; // erro real (ex.: constraints / banco)
@@ -267,6 +247,27 @@ window.renderCadastroEntradaProd = function () {
         return chave;
       }
 
+      // ---------- Resolução robusta da CHAVE do produto ----------
+      // 1) tenta id oculto; 2) se não for confiável, extrai "codigo" do texto e consulta lookup; 3) devolve a CHAVE
+      async function resolveProdutoChave({ hiddenId, inputText }) {
+        const idNum = Number(hiddenId || '');
+        if (Number.isFinite(idNum) && idNum > 0) return idNum; // assume que já é chave
+
+        // tenta extrair "CODIGO - NOME"
+        const codeTry = Number(String(inputText || '').split('-')[0].trim());
+        if (Number.isFinite(codeTry) && codeTry > 0) {
+          try {
+            const rows = await ipcRenderer.invoke('movs:lookupProdutos', { search: String(codeTry), limit: 20 });
+            // prioriza match exato de código; se não houver, tenta quando "chave" = codeTry
+            const row = Array.isArray(rows)
+              ? (rows.find(r => Number(r.codigo) === codeTry) || rows.find(r => Number(r.chave) === codeTry))
+              : null;
+            if (row && Number(row.chave) > 0) return Number(row.chave);
+          } catch (_) { /* ignora e deixa cair no erro */ }
+        }
+        return null;
+      }
+
       // ---------- Lookups ----------
       function openFornecedoresLookup() {
         if (typeof window.openLookup !== 'function') {
@@ -296,7 +297,7 @@ window.renderCadastroEntradaProd = function () {
       $('enp-forn-lupa').onclick = openFornecedoresLookup;
       $('enp-prod-lupa').onclick = openProdutosLookup;
 
-      // F8: abre fornecedores se foco está no bloco de fornecedor; caso contrário, produtos
+      // F8: abre fornecedores se foco está no fornecedor; caso contrário, produtos
       document.addEventListener('keydown', (e) => {
         if (e.key === 'F8') {
           e.preventDefault();
@@ -338,25 +339,51 @@ window.renderCadastroEntradaProd = function () {
       $('enp-add-prod').onclick = async () => {
         if (btnAdd.disabled) return;
         try {
-          const pid  = Number(($('enp-prod-id').value || '').trim());
-          const label = ($('enp-prod').value || '').trim();
-          let qtde = Number(($('enp-qtde').value || '0').replace(',', '.'));
-          let vu   = Number(($('enp-vu').value   || '0').replace(',', '.'));
+          const rawHidden = $('enp-prod-id').value || '';
+          const label     = ($('enp-prod').value || '').trim();
+          let qtde        = Number(($('enp-qtde').value || '0').replace(',', '.'));
+          let vu          = Number(($('enp-vu').value   || '0').replace(',', '.'));
 
-          if (!pid)        return safeToast('Selecione um produto (F8 ou lupa).', true);
+          if (!fornecedorId) return safeToast('Informe o fornecedor antes de adicionar itens.', true);
           if (!Number.isFinite(qtde) || !(qtde > 0)) return safeToast('Informe uma quantidade válida.', true);
           if (!Number.isFinite(vu)   || vu < 0)      return safeToast('Informe um valor unitário válido.', true);
-          if (!fornecedorId)         return safeToast('Informe o fornecedor antes de adicionar itens.', true);
+
+          // resolve CHAVE de produto
+          let pid = await resolveProdutoChave({ hiddenId: rawHidden, inputText: label });
+          if (!pid) return safeToast('Selecione um produto válido (use a lupa ou F8).', true);
 
           setBusy(btnAdd, true, 'Adicionando…');
-
           await ensure();
 
-          const res = await safeInvoke(
-            'movs:entrada:addProd',
-            { chaveentrada: entradaChave, chaveproduto: pid, qtde, valorunit: vu },
-            ['movsentrada:addProd', 'movs:entrada:addProduto']
-          );
+          async function addWith(pidToUse) {
+            return await safeInvoke(
+              'movs:entrada:addProd',
+              { chaveentrada: entradaChave, chaveproduto: pidToUse, qtde, valorunit: vu },
+              ['movsentrada:addProd', 'movs:entrada:addProduto']
+            );
+          }
+
+          let res;
+          try {
+            res = await addWith(pid);
+          } catch (e) {
+            // Se for FK de produto, tenta resolver por código do texto e reenvia UMA vez
+            const isFkProduto = String(e?.code) === '23503' &&
+              String(e?.message || e).includes('itementradaprod_chaveproduto_fkey');
+
+            if (isFkProduto) {
+              const pidResolved = await resolveProdutoChave({ hiddenId: null, inputText: label });
+              if (pidResolved && pidResolved !== pid) {
+                pid = pidResolved; // atualiza e tenta de novo
+                res = await addWith(pid);
+              } else {
+                throw e;
+              }
+            } else {
+              throw e;
+            }
+          }
+
           const rowId = res?.chave;
           const vuDb  = (res?.valorunit ?? vu);
           const vtDb  = (res?.valortotal ?? (qtde * vuDb));
