@@ -1,188 +1,211 @@
-// ======================================
-// Relatório: Histórico Comercial
-// (itens/linhas vendidas/compradas)
-// ======================================
+// src/renderer/views/rel-historico-comercial.js
 window.renderRelHistoricoComercial = function () {
-  return {
-    title: 'Relatório: Histórico Comercial',
-    html: `
-      <style>
-        .rep-wrap{display:flex;flex-direction:column;gap:16px}
-        .filters{display:grid;gap:12px;grid-template-columns:repeat(7,1fr);align-items:end}
-        @media (max-width:1400px){ .filters{grid-template-columns:1fr 1fr 1fr 1fr} }
-        @media (max-width:900px){ .filters{grid-template-columns:1fr 1fr} }
-        .row-lookup{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:end}
-        .tbl{width:100%;border-collapse:separate;border-spacing:0}
-        .tbl th{background:#f8fafc;border-bottom:1px solid #e5eaf0;padding:10px;font-size:13px;text-align:left}
-        .tbl td{border-bottom:1px solid #eef2f7;padding:10px}
-        .txt-right{text-align:right}
-        .muted{color:#64748b}
-      </style>
+  const { ipcRenderer, shell } = require('electron');
 
-      <div class="rep-wrap">
-        <div class="card">
-          <h3>Filtros</h3>
-          <div class="filters">
-            <div>
-              <label class="label">De</label>
-              <input type="date" id="rhc-de" class="input"/>
-            </div>
-            <div>
-              <label class="label">Até</label>
-              <input type="date" id="rhc-ate" class="input"/>
-            </div>
+  const html = `
+    <style>
+      .filters{display:grid; gap:12px; grid-template-columns:repeat(6,1fr)}
+      @media (max-width:1200px){ .filters{grid-template-columns:1fr 1fr 1fr} }
+      @media (max-width:800px){ .filters{grid-template-columns:1fr 1fr} }
+      .row-lookup{display:grid; grid-template-columns:1fr auto; gap:6px; align-items:end}
+      .btns{display:flex; gap:8px; align-items:end}
+      .tbl{width:100%; border-collapse:separate; border-spacing:0}
+      .tbl thead th{background:#f6f8fc; border-bottom:1px solid #e7edf7; padding:10px; font-size:13px; text-align:left; color:#0f2544}
+      .tbl tbody td{border-bottom:1px solid #eef2f7; padding:10px}
+      .txt-right{text-align:right}
+      .muted{color:#6b7c93}
+    </style>
 
-            <div>
-              <label class="label">Cliente (opcional)</label>
-              <div class="row-lookup">
-                <input id="rhc-cliente" class="input" placeholder="F8 para pesquisar" data-target-id="rhc-cliente-id"/>
-                <button id="rhc-cli-lupa" class="button outline" type="button">🔎</button>
-              </div>
-              <input type="hidden" id="rhc-cliente-id"/>
-            </div>
+    <div class="card">
+      <h3 style="margin-top:0">Relatório: Histórico Comercial</h3>
 
-            <div>
-              <label class="label">Empresa (opcional)</label>
-              <div class="row-lookup">
-                <input id="rhc-empresa" class="input" placeholder="F8 para pesquisar" data-target-id="rhc-empresa-id"/>
-                <button id="rhc-emp-lupa" class="button outline" type="button">🔎</button>
-              </div>
-              <input type="hidden" id="rhc-empresa-id"/>
-            </div>
-
-            <div>
-              <label class="label">Movimento</label>
-              <select id="rhc-mov" class="select">
-                <option value="ambos">Ambos</option>
-                <option value="saidas" selected>Saídas</option>
-                <option value="entradas">Entradas</option>
-              </select>
-            </div>
-
-            <div>
-              <label class="label">Tipo de Item</label>
-              <select id="rhc-tipo" class="select">
-                <option value="ambos">Ambos</option>
-                <option value="produto" selected>Produto</option>
-                <option value="servico">Serviço</option>
-              </select>
-            </div>
-
-            <div class="actions" style="gap:8px">
-              <button id="rhc-aplicar" class="button">Aplicar</button>
-              <button id="rhc-limpar"  class="button outline">Limpar</button>
-            </div>
-          </div>
+      <div class="filters">
+        <div>
+          <label class="label">De</label>
+          <input type="date" id="hc-dtini" class="input"/>
+        </div>
+        <div>
+          <label class="label">Até</label>
+          <input type="date" id="hc-dtfim" class="input"/>
         </div>
 
-        <div class="card">
-          <h3>Itens</h3>
-          <table class="tbl" id="rhc-itens">
-            <thead>
-              <tr>
-                <th>Cliente</th>
-                <th>Descrição</th>
-                <th class="txt-right">Qtde</th>
-                <th class="txt-right">Valor Unit.</th>
-                <th class="txt-right">Valor Total</th>
-                <th>Mov</th>
-                <th>Data</th>
-              </tr>
-            </thead>
-            <tbody><tr><td colspan="7" class="muted">Sem dados</td></tr></tbody>
-          </table>
+        <div>
+          <label class="label">Cliente (opcional)</label>
+          <div class="row-lookup">
+            <input id="hc-cli" class="input" placeholder="F8 para pesquisar" data-lookup="clientes" data-target-id="hc-cli-id"/>
+            <button id="hc-cli-lupa" class="button outline" type="button">🔎</button>
+          </div>
+          <input type="hidden" id="hc-cli-id"/>
+        </div>
+
+        <div>
+          <label class="label">Movimento</label>
+          <select id="hc-mov" class="select">
+            <option value="saidas">Saídas</option>
+            <option value="entradas">Entradas</option>
+            <option value="ambos">Ambos</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="label">Tipo de Item</label>
+          <select id="hc-tipo" class="select">
+            <option value="produto">Produto</option>
+            <option value="servico">Serviço</option>
+            <option value="ambos">Ambos</option>
+          </select>
+        </div>
+
+        <div class="btns">
+          <button id="hc-aplicar" class="button">Aplicar</button>
+          <button id="hc-limpar" class="button outline">Limpar</button>
+          <button id="hc-pdf" class="button outline">Baixar PDF</button>
         </div>
       </div>
-    `,
-    afterRender() {
-      const { ipcRenderer } = require('electron');
-      const $ = (s) => document.querySelector(s);
+    </div>
 
-      const money = (v) => (Number(v || 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-      const n3 = (v) => Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-      const fmtDateBR = (v, withTime = false) => {
-        if (!v) return '';
-        if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
-          const [y, m, d] = v.split('-').map(Number);
-          const dd = String(d).padStart(2, '0'), mm = String(m).padStart(2, '0');
-          return withTime ? `${dd}/${mm}/${y} 00:00` : `${dd}/${mm}/${y}`;
-        }
-        const d = (v instanceof Date) ? v : new Date(v);
-        if (isNaN(d)) return String(v);
-        const dd = String(d.getDate()).padStart(2, '0');
-        const mm = String(d.getMonth() + 1).padStart(2, '0');
-        const yyyy = d.getFullYear();
-        if (!withTime) return `${dd}/${mm}/${yyyy}`;
-        const HH = String(d.getHours()).padStart(2, '0');
-        const MM = String(d.getMinutes()).padStart(2, '0');
-        return `${dd}/${mm}/${yyyy} ${HH}:${MM}`;
+    <div class="card">
+      <h3>Itens</h3>
+      <table class="tbl" id="hc-itens">
+        <thead><tr>
+          <th>Data</th><th>Mov</th><th>Cliente/Fornec</th><th>Descrição</th>
+          <th class="txt-right">Qtde</th><th class="txt-right">Vlr Unit</th><th class="txt-right">Total</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  `;
+
+  function afterRender(){
+    const $ = (s)=>document.querySelector(s);
+    const todayISO = () => new Date().toISOString().slice(0,10);
+    const firstDayMonth = () => { const d=new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0,10); };
+    const fmtMoney = (v)=> Number(v||0).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+    const fmtDateBR = (iso)=>{ if(!iso) return ''; const d=new Date(iso); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`; };
+
+    $('#hc-dtini').value = firstDayMonth();
+    $('#hc-dtfim').value = todayISO();
+
+    const wireLookup = (btnSel, inputId, key) => {
+      $(btnSel).onclick = () => {
+        if (typeof openLookup !== 'function') return toast('Lookup não carregado.', true);
+        openLookup(key, ({ id, label }) => {
+          $(`#${inputId}-id`).value = String(id);
+          $(`#${inputId}`).value = label;
+        });
       };
-      const todayISO = () => new Date().toISOString().slice(0,10);
-      const firstDay = () => {
-        const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0,10);
+    };
+    wireLookup('#hc-cli-lupa', 'hc-cli', 'clientes');
+
+    let last = { filtros:null, itens:[] };
+
+    $('#hc-limpar').onclick = () => {
+      $('#hc-dtini').value = firstDayMonth();
+      $('#hc-dtfim').value = todayISO();
+      $('#hc-cli').value = ''; $('#hc-cli-id').value = '';
+      $('#hc-mov').value = 'saidas';
+      $('#hc-tipo').value = 'produto';
+      renderItens([]); last = { filtros:null, itens:[] };
+    };
+
+    $('#hc-aplicar').onclick = load;
+    $('#hc-pdf').onclick = async ()=>{ if(!last.filtros) await load(); await exportPDF(); };
+
+    async function load(){
+      const filtros = {
+        dtini: $('#hc-dtini').value || null,
+        dtfim: $('#hc-dtfim').value || null,
+        cliforId: Number($('#hc-cli-id').value || '') || null,
+        movimento: $('#hc-mov').value || 'saidas',
+        tipoItem:  $('#hc-tipo').value || 'produto'
       };
-
-      // defaults
-      $('#rhc-de').value  = firstDay();
-      $('#rhc-ate').value = todayISO();
-
-      function wireLookup(inputSel, btnSel, source){
-        const input = $(inputSel), btn = $(btnSel);
-        const hiddenId = document.getElementById(input.dataset.targetId);
-        const open = () => {
-          if (typeof window.openLookup !== 'function') { alert('Lookup não disponível'); return; }
-          window.openLookup(source, ({id,label}) => { hiddenId.value = String(id || ''); input.value = label || ''; });
-        };
-        input.addEventListener('keydown', (ev)=>{ if (ev.key === 'F8') { ev.preventDefault(); open(); } });
-        btn.addEventListener('click', open);
+      try{
+        const res = await ipcRenderer.invoke('rel:historicocomercial:listar', filtros);
+        last = { filtros, itens: res.itens || [] };
+        renderItens(last.itens);
+      }catch(e){
+        toast('Erro ao consultar: '+e.message, true);
       }
-      wireLookup('#rhc-cliente', '#rhc-cli-lupa', 'clientes');
-      wireLookup('#rhc-empresa', '#rhc-emp-lupa', 'empresa');
-
-      $('#rhc-limpar').onclick = () => {
-        $('#rhc-de').value  = firstDay();
-        $('#rhc-ate').value = todayISO();
-        $('#rhc-cliente').value = ''; $('#rhc-cliente-id').value = '';
-        $('#rhc-empresa').value = ''; $('#rhc-empresa-id').value = '';
-        $('#rhc-mov').value  = 'saidas';
-        $('#rhc-tipo').value = 'produto';
-        render({ itens: [] });
-      };
-
-      $('#rhc-aplicar').onclick = async () => {
-        const payload = {
-          dtini: $('#rhc-de').value || null,
-          dtfim: $('#rhc-ate').value || null,
-          cliforId: Number($('#rhc-cliente-id').value || '') || null,
-          empresaId: Number($('#rhc-empresa-id').value || '') || null,
-          movimento: $('#rhc-mov').value || 'ambos',
-          tipoItem:  $('#rhc-tipo').value || 'ambos'
-        };
-        try{
-          const data = await ipcRenderer.invoke('rel:historicocomercial:listar', payload);
-          render(data);
-        }catch(err){
-          console.error(err);
-          alert('Erro ao consultar: ' + err.message);
-        }
-      };
-
-      function render(data){
-        const rows = (data?.itens || []).map(r => `
-          <tr>
-            <td>${r.cliente ?? r.fornecedor ?? r.clifor ?? ''}</td>
-            <td>${r.descricao ?? r.produto ?? r.servico ?? r.item ?? ''}</td>
-            <td class="txt-right">${n3(r.qtde)}</td>
-            <td class="txt-right">${money(r.valorunit)}</td>
-            <td class="txt-right">${money(r.valortotal)}</td>
-            <td>${(r.mov || '').charAt(0).toUpperCase() + (r.mov || '').slice(1)}</td>
-            <td>${fmtDateBR(r.data, true)}</td>
-          </tr>
-        `).join('');
-        $('#rhc-itens tbody').innerHTML = rows || `<tr><td colspan="7" class="muted">Sem dados</td></tr>`;
-      }
-
-      render({ itens: [] });
     }
-  };
+
+    function renderItens(rows){
+      const tb = $('#hc-itens tbody');
+      if(!rows.length){ tb.innerHTML = `<tr><td colspan="7" class="muted">Sem dados</td></tr>`; return; }
+      tb.innerHTML = rows.map(r=>`
+        <tr>
+          <td>${fmtDateBR(r.data)}</td>
+          <td>${r.mov || ''}</td>
+          <td>${r.cliente || ''}</td>
+          <td>${r.descricao || ''}</td>
+          <td class="txt-right">${Number(r.qtde||0).toFixed(3)}</td>
+          <td class="txt-right">${fmtMoney(r.valorunit)}</td>
+          <td class="txt-right">${fmtMoney(r.valortotal)}</td>
+        </tr>`).join('');
+    }
+
+    function buildPdfHtml(){
+      const f = last.filtros || {};
+      const fmt = (v)=> (v? new Date(v).toLocaleDateString('pt-BR') : '');
+      const header = [
+        f.dtini ? `De: <b>${fmt(f.dtini)}</b>` : '',
+        f.dtfim ? `Até: <b>${fmt(f.dtfim)}</b>` : '',
+        f.movimento ? `Movimento: <b>${f.movimento}</b>` : '',
+        f.tipoItem ? `Tipo: <b>${f.tipoItem}</b>` : '',
+        (document.getElementById('hc-cli').value||'') ? `Cliente: <b>${document.getElementById('hc-cli').value}</b>` : '',
+      ].filter(Boolean).join(' &nbsp;•&nbsp; ');
+
+      const itensHtml = (last.itens||[]).map(r=>`
+        <tr>
+          <td>${fmtDateBR(r.data)}</td>
+          <td>${r.mov || ''}</td>
+          <td>${r.cliente || ''}</td>
+          <td>${r.descricao || ''}</td>
+          <td class="num">${Number(r.qtde||0).toFixed(3)}</td>
+          <td class="num">${fmtMoney(r.valorunit)}</td>
+          <td class="num">${fmtMoney(r.valortotal)}</td>
+        </tr>`).join('') || `<tr><td colspan="7" class="muted">Sem dados</td></tr>`;
+
+      return `
+<!doctype html><html lang="pt-br"><head><meta charset="utf-8"/>
+<title>Histórico Comercial</title>
+<style>
+  @page{ size:A4; margin:18mm 14mm; }
+  *{ box-sizing:border-box; font-family:Inter, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Arial; color:#0f2544 }
+  h1{ margin:0 0 4px 0; font-size:20px } p.sub{ margin:0 0 12px 0; color:#6b7c93; font-size:12px }
+  .card{ border:1px solid #e7edf7; border-radius:10px; padding:12px; margin:10px 0 }
+  table{ width:100%; border-collapse:separate; border-spacing:0 }
+  thead th{ background:#f6f8fc; border-bottom:1px solid #e7edf7; padding:8px; font-size:12px; text-align:left }
+  tbody td{ border-bottom:1px solid #eef2f7; padding:8px; font-size:12px }
+  .num{ text-align:right } .muted{ color:#6b7c93; text-align:center; padding:12px }
+</style></head><body>
+  <h1>Relatório: Histórico Comercial</h1>
+  <p class="sub">${header}</p>
+
+  <div class="card">
+    <table>
+      <thead><tr>
+        <th>Data</th><th>Mov</th><th>Cliente/Fornec</th><th>Descrição</th>
+        <th style="text-align:right">Qtde</th><th style="text-align:right">Vlr Unit</th><th style="text-align:right">Total</th>
+      </tr></thead>
+      <tbody>${itensHtml}</tbody>
+    </table>
+  </div>
+</body></html>`;
+    }
+
+    async function exportPDF(){
+      try{
+        const html = buildPdfHtml();
+        const { path: outPath } = await ipcRenderer.invoke('report:pdf', { html, title:'relatorio-historico-comercial' });
+        toast('PDF gerado em: ' + outPath);
+        shell.openPath(outPath);
+      }catch(e){
+        toast('Falha ao gerar PDF: '+e.message, true);
+      }
+    }
+
+    load(); // inicial
+  }
+
+  return { title: 'Relatório: Histórico Comercial', html, afterRender };
 };
