@@ -77,8 +77,6 @@
               <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M9.5 6.5l5 5-5 5M4 12h10"/></svg>
               Serviços
             </a>
-
-            <!-- ADIÇÕES -->
             <a href="#/consulta/entradas" class="submenu-link">
               <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M8 6h13M3 12h18M3 18h18"/></svg>
               Entradas
@@ -95,9 +93,9 @@
             <span class="label">Relatórios</span><span class="caret">▾</span>
           </button>
           <div id="submenu-relatorios" class="submenu">
-            <a href="#/relatorios/fat-diario" class="submenu-link">
+            <a href="#/relatorios/faturamento" class="submenu-link">
               <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M4 19V6m6 13V10m6 9V4m4 15H2"/></svg>
-              Faturamento Diário
+              Faturamento
             </a>
             <a href="#/relatorios/fat-por-cliente" class="submenu-link">
               <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M16 11a4 4 0 10-8 0 4 4 0 008 0zM3 21a8 8 0 0118 0"/></svg>
@@ -166,22 +164,19 @@
   <script src="./views/cadastro-saida-prod.js"></script>
   <script src="./views/cadastro-saida-serv.js"></script>
 
-  <!-- Consultas -->
+  <!-- Consultas etc -->
   <script src="./views/consulta-produtos.js"></script>
   <script src="./views/consulta-clientes.js"></script>
   <script src="./views/consulta-servicos.js"></script>
 
-  <!-- ADIÇÕES: Consultar Entradas/Saídas (nomes alinhados) -->
-  <script src="./views/consultar-entradas.js"></script>
-  <script src="./views/consultar-saidas.js"></script>
+  <!-- Consultar Entradas/Saídas -->
+  <script src="./views/consulta-entradas.js"></script>
+  <script src="./views/consulta-saidas.js"></script>
 
-  <!-- Relatórios (arquivos separados) -->
-  <script src="./views/rel-fat-diario.js"></script>
+  <!-- Relatórios separados -->
+  <script src="./views/rel-faturamento.js"></script>
   <script src="./views/rel-fat-por-cliente.js"></script>
   <script src="./views/rel-historico-comercial.js"></script>
-
-  <!-- (opcional) helpers de impressão/export -->
-  <script src="./views/relatorios-prints.js"></script>
 
   <!-- Router + app -->
   <script src="./router.js"></script>

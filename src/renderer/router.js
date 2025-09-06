@@ -2,48 +2,67 @@
 const ROUTE_MAP = {
   '#/': 'renderDashboard',
 
+  // Cadastros
   '#/cadastro/produtos': 'renderCadastroProdutos',
   '#/cadastro/clientes': 'renderCadastroClientes',
   '#/cadastro/servicos': 'renderCadastroServicos',
 
-  // ENTRADAS separadas
+  // Entradas (separadas)
   '#/cadastro/entradas/produtos': 'renderCadastroEntradaProd',
   '#/cadastro/entradas/servicos': 'renderCadastroEntradaServ',
 
-  // SAÍDAS separadas
+  // Saídas (separadas)
   '#/cadastro/saidas/produtos': 'renderCadastroSaidaProd',
   '#/cadastro/saidas/servicos': 'renderCadastroSaidaServ',
 
-  // CONSULTAS existentes
+  // Consultas existentes
   '#/consulta/produtos': 'renderConsultaProdutos',
   '#/consulta/clientes': 'renderConsultaClientes',
   '#/consulta/servicos': 'renderConsultaServicos',
 
-  // Relatórios (separados por arquivo)
-  '#/relatorios/fat-diario': 'renderRelFatDiario',
-  '#/relatorios/fat-por-cliente': 'renderRelFatPorCliente',
-  '#/relatorios/historico-comercial': 'renderRelHistoricoComercial',
-
-  // >>> ADIÇÃO: novas rotas de consulta (Entradas/Saídas)
+  // Consultar Entradas/Saídas (se sua UI usa essas telas)
   '#/consulta/entradas': 'renderConsultarEntradas',
   '#/consulta/saidas': 'renderConsultarSaidas',
 
+  // ================= Relatórios (separados por arquivo) =================
+  // Faturamento (novo nome)
+  '#/relatorios/faturamento': 'renderRelFaturamento',
+  // Alias de compatibilidade (links antigos ainda funcionam)
+  '#/relatorios/fat-diario': 'renderRelFaturamento',
+
+  // Faturamento por Cliente
+  '#/relatorios/fat-por-cliente': 'renderRelFatPorCliente',
+  // Alias opcional para compatibilidade
+  '#/relatorios/por-cliente': 'renderRelFatPorCliente',
+
+  // Histórico Comercial
+  '#/relatorios/historico-comercial': 'renderRelHistoricoComercial',
+
+  // Página de lista de relatórios (se existir)
   '#/relatorios': 'renderRelatorios',
+
+  // Gerais
   '#/configuracoes': 'renderConfiguracoes',
   '#/perfil': 'renderPerfil'
 };
 
 window.navigate = function (hash) {
   if (!hash) hash = '#/';
-  if (location.hash !== hash) location.hash = hash;
-  else renderRoute();
+  if (location.hash !== hash) {
+    location.hash = hash;
+  } else {
+    renderRoute();
+  }
 };
 
 function renderRoute() {
   const root = document.getElementById('view-root');
   const title = document.getElementById('page-title');
 
-  const hash = location.hash || '#/';
+  // Normaliza hash (remove possíveis barras finais duplicadas)
+  let hash = location.hash || '#/';
+  if (hash.length > 2 && hash.endsWith('/')) hash = hash.slice(0, -1);
+
   const fnName = ROUTE_MAP[hash] || 'renderDashboard';
   const fn = window[fnName];
 
@@ -53,7 +72,7 @@ function renderRoute() {
     return;
   }
 
-  const { title: pageTitle, html, afterRender } = fn();
+  const { title: pageTitle, html, afterRender } = fn() || {};
   title.textContent = pageTitle || 'ERP';
   root.innerHTML = html || '';
   if (typeof afterRender === 'function') afterRender();

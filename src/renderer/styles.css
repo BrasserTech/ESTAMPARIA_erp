@@ -220,3 +220,55 @@ h3{margin:8px 0 12px}
   /* se quiser esconder a sidebar com classe .is-hidden via JS em mobile */
   .sidebar.is-hidden{ transform: translateX(-100%); transition: transform .2s ease; }
 }
+
+/* ================== Lookup (F8) – Modal unificado ================== */
+.lookup-overlay{
+  position:fixed; inset:0; z-index:1000;
+  background:rgba(15,23,42,.35); backdrop-filter:blur(2px);
+  display:flex; align-items:center; justify-content:center;
+}
+.lookup-dialog{
+  width:min(860px, calc(100vw - 40px));
+  max-height:calc(100vh - 80px);
+  background:#fff; border:1px solid #e6eef9; border-radius:14px;
+  box-shadow:0 20px 60px rgba(0,0,0,.25);
+  display:flex; flex-direction:column; overflow:hidden;
+}
+.lookup-header{
+  display:flex; align-items:center; gap:10px;
+  padding:10px 14px; background:#1f5fe0; color:#fff;
+}
+.lookup-title{ font-weight:800; font-size:15px; flex:1 }
+.lookup-close{
+  border:1px solid rgba(255,255,255,.45); background:transparent; color:#fff;
+  border-radius:10px; width:34px; height:34px; cursor:pointer;
+}
+.lookup-close:hover{ background:rgba(255,255,255,.12) }
+
+.lookup-search{
+  display:grid; grid-template-columns:1fr auto auto; gap:8px;
+  padding:12px 14px; border-bottom:1px solid #eef2f7; background:#f8fbff;
+}
+.lookup-term{ width:100%; padding:10px 12px; border:1px solid #d8e1ef; border-radius:10px }
+.lookup-term:focus{ outline:none; border-color:#7aa6ff; box-shadow:0 0 0 3px rgba(60,120,240,.14) }
+.lookup-btn, .lookup-clear{
+  background:#1f5fe0; color:#fff; border:none; border-radius:10px; padding:0 16px; height:38px; cursor:pointer;
+}
+.lookup-clear{ background:#d6def5; color:#1e2a4a }
+.lookup-btn:hover{ filter:brightness(.97) }
+.lookup-clear:hover{ filter:brightness(.97) }
+
+.lookup-body{ padding:0 0 8px 0; overflow:auto }
+.lookup-table{ width:100%; border-collapse:separate; border-spacing:0 }
+.lookup-table thead th{
+  background:#f3f7ff; border-bottom:1px solid #e6eef9; padding:10px; text-align:left; font-size:13px; color:#0f2544
+}
+.lookup-table tbody td{
+  border-bottom:1px solid #f1f4fb; padding:10px; font-size:14px
+}
+.lookup-table tbody tr:hover{ background:#f8fbff; cursor:pointer }
+.lookup-table tbody tr.is-selected{ background:#eef4ff }
+.lookup-hint{ padding:8px 14px; color:#6b7c93; font-size:12px }
+
+.txt-right{ text-align:right }
+.muted{ color:#8aa0b8; text-align:center; padding:14px }
