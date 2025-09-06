@@ -5,7 +5,9 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const db = require('../database'); // ../database/index.js
-require('./ipc/relatorios.js');
+
+// >>> Mantido como você pediu: carrega os relatórios explicitamente
+require('./ipc/relatorios');
 
 let mainWindow;
 
@@ -186,15 +188,10 @@ ipcMain.handle('clientes:criar', async (_e, c) => {
   const { nome, fisjur, tipo, pertenceemp, email, cpf, telefone, endereco } = c || {};
   if (!nome || String(nome).trim() === '') throw new Error('Nome é obrigatório.');
 
-  // --- Normalizações ---
-  // A UI manda 1 (Física) ou 2 (Jurídica). O banco exige 'F' ou 'J'.
   const fisjurRaw = (fisjur === undefined || fisjur === null) ? 1 : fisjur;
   const fisjurDB = String(fisjurRaw) === '2' ? 'J' : 'F';
-
-  // Tipo permanece numérico (1=cliente, 2=fornecedor, 3=representante)
   const tipoNum = Number(tipo) || 1;
 
-  // Enviar CPF/telefone apenas com dígitos (mantém compatibilidade com possíveis constraints)
   const digits = (s) => (s || '').toString().replace(/\D+/g, '') || null;
   const cpfDigits = digits(cpf);
   const telDigits = digits(telefone);
@@ -220,68 +217,40 @@ ipcMain.handle('clientes:criar', async (_e, c) => {
 });
 
 /* ===================================================================
-   LOOKUP / PESQUISA GENÉRICA (F8 / Lupa) — versão robusta
+   LOOKUP / PESQUISA GENÉRICA (F8 / Lupa)
    =================================================================== */
 ipcMain.handle('lookup:search', async (_e, payload = {}) => {
-  // 1) Sanitização básica
   const termRaw  = (payload.term ?? '');
   const limitRaw = (payload.limit ?? 50);
   const lim = Math.min(Math.max(parseInt(limitRaw, 10) || 50, 1), 200);
 
-  // 2) Normalização do source (lower + remoção de acentos)
   const rawSource = (payload.source ?? '')
-    .toString()
-    .trim()
-    .toLowerCase()
+    .toString().trim().toLowerCase()
     .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, ''); // requer Node com ICU completo
+    .replace(/\p{Diacritic}/gu, '');
 
-  // 3) Mapeamento de sinônimos (pt/en; singular/plural)
   const alias = {
-    // EMPRESA
-    empresa: 'empresa', empresas: 'empresa', emp: 'empresa', company: 'empresa', companies: 'empresa',
-    // PRODUTOS
-    produto: 'produtos', produtos: 'produtos', prod: 'produtos', product: 'produtos', products: 'produtos',
-    // SERVIÇOS
-    servico: 'servicos', servicos: 'servicos', svc: 'servicos', service: 'servicos', services: 'servicos',
-    // CLIFOR (clientes/fornecedores/pessoas)
-    clifor: 'clifor',
-    cliente: 'clifor', clientes: 'clifor',
-    fornecedor: 'clifor', fornecedores: 'clifor',
-    pessoa: 'clifor', pessoas: 'clifor'
+    empresa: 'empresa', empresas: 'empresa', emp: 'empresa',
+    produto: 'produtos', produtos: 'produtos', prod: 'produtos',
+    servico: 'servicos', servicos: 'servicos', svc: 'servicos',
+    clifor: 'clifor', cliente: 'clifor', clientes: 'clifor',
+    fornecedor: 'clifor', fornecedores: 'clifor', pessoa: 'clifor', pessoas: 'clifor'
   };
 
-  // 4) Resolve a fonte
   let source = alias[rawSource];
-
-  // Heurística por substring (ex.: "prod-list", "services-page", "empresas  ", etc.)
   if (!source && rawSource) {
     if (rawSource.includes('emp')) source = 'empresa';
     else if (rawSource.includes('prod')) source = 'produtos';
     else if (rawSource.includes('serv')) source = 'servicos';
     else if (rawSource.includes('cli') || rawSource.includes('for') || rawSource.includes('pess')) source = 'clifor';
   }
-
-  // 5) Fallback quando vier vazio/inesperado
-  // Ajuste este valor conforme a tela chamadora: 'produtos' | 'servicos' | 'empresa' | 'clifor'
   const fallbackDefault = 'produtos';
-  if (!source) {
-    source = fallbackDefault;
-    // Se preferir comportamento estrito (sem fallback), comente a linha acima
-    // e descomente o bloco abaixo:
-    /*
-    const allowed = Object.keys(alias).sort().join(', ');
-    const got = rawSource || '(vazio)';
-    throw new Error(`Fonte de pesquisa não permitida. Recebido: "${got}". Use uma destas: ${allowed}`);
-    */
-  }
+  if (!source) source = fallbackDefault;
 
-  // 6) Parâmetros de busca
   const term  = termRaw.toString().trim();
   const qLike = `%${term}%`;
   const params = [term, qLike, lim];
 
-  // 7) SQL por fonte (conforme seu schema.sql)
   let sql;
   if (source === 'empresa') {
     sql = `
@@ -307,7 +276,7 @@ ipcMain.handle('lookup:search', async (_e, payload = {}) => {
        ORDER BY nome
        LIMIT $3
     `;
-  } else { // 'clifor'
+  } else {
     sql = `
       SELECT chave, codigo, nome
         FROM clifor
@@ -317,7 +286,6 @@ ipcMain.handle('lookup:search', async (_e, payload = {}) => {
     `;
   }
 
-  // 8) Execução e tratamento
   try {
     const { rows } = await db.query(sql, params);
     return rows;
@@ -328,18 +296,14 @@ ipcMain.handle('lookup:search', async (_e, payload = {}) => {
 });
 
 /* ===================================================================
-   DASHBOARD  (ajustado ao seu schema)
+   DASHBOARD
    =================================================================== */
-
-// Entradas × Saídas por mês + totais do período
 ipcMain.handle('dashboard:kpis', async (_e, { meses = 6 } = {}) => {
   const months = Math.max(1, parseInt(meses, 10) || 6);
-
   const { rows: rNow } = await db.query('SELECT NOW() AS now');
   const now = new Date(rNow[0].now);
   const start = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
 
-  // ENTRADAS: usa datahoracad e total
   const { rows: ent } = await db.query(
     `SELECT to_char(date_trunc('month', e.datahoracad), 'YYYY-MM') AS ym,
             SUM(COALESCE(e.total,0)) AS total
@@ -350,7 +314,6 @@ ipcMain.handle('dashboard:kpis', async (_e, { meses = 6 } = {}) => {
     [start]
   );
 
-  // SAIDAS: usa datahoracad e total
   const { rows: sai } = await db.query(
     `SELECT to_char(date_trunc('month', s.datahoracad), 'YYYY-MM') AS ym,
             SUM(COALESCE(s.total,0)) AS total
@@ -384,10 +347,8 @@ ipcMain.handle('dashboard:kpis', async (_e, { meses = 6 } = {}) => {
   };
 });
 
-// Top 5 clientes por faturamento (SAIDAS.x CLIFOR)
 ipcMain.handle('dashboard:topclientes', async (_e, { meses = 6 } = {}) => {
   const months = Math.max(1, parseInt(meses, 10) || 6);
-
   const { rows: rNow } = await db.query('SELECT NOW() AS now');
   const now = new Date(rNow[0].now);
   const start = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
@@ -410,15 +371,12 @@ ipcMain.handle('dashboard:topclientes', async (_e, { meses = 6 } = {}) => {
   };
 });
 
-// Mix Produtos × Serviços (por quantidade de itens, pois os itens não têm preço/qtde no schema atual)
 ipcMain.handle('dashboard:mix', async (_e, { meses = 6 } = {}) => {
   const months = Math.max(1, parseInt(meses, 10) || 6);
-
   const { rows: rNow } = await db.query('SELECT NOW() AS now');
   const now = new Date(rNow[0].now);
   const start = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
 
-  // Produtos: conta itens de saída de produto no período
   const { rows: rp } = await db.query(
     `SELECT COUNT(*)::int AS qtd
        FROM itemsaidaprod ip
@@ -427,7 +385,6 @@ ipcMain.handle('dashboard:mix', async (_e, { meses = 6 } = {}) => {
     [start]
   );
 
-  // Serviços: conta itens de saída de serviço no período
   const { rows: rs } = await db.query(
     `SELECT COUNT(*)::int AS qtd
        FROM itemsaidaserv isv
@@ -443,11 +400,27 @@ ipcMain.handle('dashboard:mix', async (_e, { meses = 6 } = {}) => {
 });
 
 /* ===========================================================
-   AUTOLOAD de módulos IPC adicionais (ex.: movimentacoes.js)
+   AUTOLOAD de módulos IPC adicionais
+   (evita duplicar os que já estão neste arquivo ou no require acima)
    =========================================================== */
 const ipcDir = path.join(__dirname, 'ipc');
 if (fs.existsSync(ipcDir)) {
+  const skip = new Set([
+    // estes já estão neste arquivo principal:
+    'clientes.js',
+    'produtos.js',
+    'servicos.js',
+    // este já foi requerido no topo explicitamente:
+    'relatorios.js',
+  ]);
+
   fs.readdirSync(ipcDir)
-    .filter(f => f.endsWith('.js'))
-    .forEach(f => { try { require(path.join(ipcDir, f)); } catch (e) { console.error('[IPC]', f, e); } });
+    .filter(f => f.endsWith('.js') && !skip.has(f))
+    .forEach(f => {
+      try {
+        require(path.join(ipcDir, f));
+      } catch (e) {
+        console.error('[IPC]', f, e);
+      }
+    });
 }

@@ -95,11 +95,11 @@
             <span class="label">Relatórios</span><span class="caret">▾</span>
           </button>
           <div id="submenu-relatorios" class="submenu">
-            <a href="#/relatorios/faturamento-diario" class="submenu-link">
+            <a href="#/relatorios/fat-diario" class="submenu-link">
               <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M4 19V6m6 13V10m6 9V4m4 15H2"/></svg>
               Faturamento Diário
             </a>
-            <a href="#/relatorios/por-cliente" class="submenu-link">
+            <a href="#/relatorios/fat-por-cliente" class="submenu-link">
               <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M16 11a4 4 0 10-8 0 4 4 0 008 0zM3 21a8 8 0 0118 0"/></svg>
               Faturamento por Cliente
             </a>
@@ -166,20 +166,21 @@
   <script src="./views/cadastro-saida-prod.js"></script>
   <script src="./views/cadastro-saida-serv.js"></script>
 
-  <!-- Consultas etc -->
+  <!-- Consultas -->
   <script src="./views/consulta-produtos.js"></script>
   <script src="./views/consulta-clientes.js"></script>
   <script src="./views/consulta-servicos.js"></script>
 
-  <!-- ADIÇÕES: Consultar Entradas/Saídas (nomes corrigidos) -->
-  <script src="./views/consulta-entradas.js"></script>
-  <script src="./views/consulta-saidas.js"></script>
+  <!-- ADIÇÕES: Consultar Entradas/Saídas (nomes alinhados) -->
+  <script src="./views/consultar-entradas.js"></script>
+  <script src="./views/consultar-saidas.js"></script>
 
-  <!-- Relatórios / demais -->
-  <script src="./views/relatorios.js"></script>
-  <script src="./views/configuracoes.js"></script>
-  <script src="./views/perfil.js"></script>
+  <!-- Relatórios (arquivos separados) -->
+  <script src="./views/rel-fat-diario.js"></script>
+  <script src="./views/rel-fat-por-cliente.js"></script>
+  <script src="./views/rel-historico-comercial.js"></script>
 
+  <!-- (opcional) helpers de impressão/export -->
   <script src="./views/relatorios-prints.js"></script>
 
   <!-- Router + app -->

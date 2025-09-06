@@ -1,29 +1,64 @@
 /* ================== Base ================== */
 *{box-sizing:border-box}
+:root{
+  --sidebar-w: 280px;
+  --sidebar-w-collapsed: 80px;
+}
 html,body,#app{height:100%}
-body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'Helvetica Neue',Arial,'Noto Sans',sans-serif;background:#f4f7fc;color:#0f2544}
+body{
+  margin:0;
+  font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'Helvetica Neue',Arial,'Noto Sans',sans-serif;
+  background:#f4f7fc;
+  color:#0f2544;
+  overflow:hidden;               /* evita scroll da página inteira: quem rola é o conteúdo */
+}
 
 /* ================== Layout ================== */
+/* A .app continua existindo; quem dita o layout é a sidebar fixa + margin do conteúdo */
 .app{
-  display:grid;
-  grid-template-columns:280px 1fr;        /* acompanha o estado do menu */
+  display:block;
   min-height:100vh;
-  transition:grid-template-columns .2s ease;
+  transition: all .2s ease;
 }
-.app.collapsed{grid-template-columns:80px 1fr}
+.app.collapsed{}
 
+/* Sidebar fixa, com scroll próprio */
 .sidebar{
-  position:relative;                      /* permite footer fixo */
+  position:fixed;                 /* <- fixa */
+  top:0; left:0; bottom:0;
+  width:var(--sidebar-w);         /* largura padrão */
   background:linear-gradient(180deg,#3b83ff 0%,#2f73f0 55%,#2765d6 100%);
-  color:#fff; display:flex; flex-direction:column; min-width:0;
+  color:#fff;
+  display:flex;
+  flex-direction:column;
+  min-width:0;
+  overflow-y:auto;                /* se o menu for grande, rola internamente */
+  -webkit-overflow-scrolling:touch;
+  z-index:20;
 }
-.content{display:flex;flex-direction:column;min-height:100vh;background:#f5f8fe}
+/* quando colapsada (classe aplicada no <div class="app ..."> pelo seu JS) */
+.app.collapsed .sidebar{ width:var(--sidebar-w-collapsed); }
+
+/* Área de conteúdo ocupa o restante da tela e faz o scroll */
+.content{
+  display:flex;
+  flex-direction:column;
+  height:100vh;
+  background:#f5f8fe;
+  overflow:hidden;                /* quem rola é a view-root */
+  margin-left:var(--sidebar-w);   /* compensa a largura da sidebar fixa */
+  transition:margin-left .2s ease;
+}
+.app.collapsed .content{
+  margin-left:var(--sidebar-w-collapsed);
+}
 
 /* ================== Topbar / Footer ================== */
 .topbar{
   height:64px; display:flex; align-items:center; justify-content:space-between;
   padding:0 20px; border-bottom:1px solid #e6eef9;
-  background:#ffffffcc; backdrop-filter:blur(6px); position:sticky; top:0; z-index:5
+  background:#ffffffcc; backdrop-filter:blur(6px);
+  position:sticky; top:0; z-index:5;
 }
 #page-title{font-size:20px;margin:0;color:#1d2a44}
 
@@ -33,10 +68,19 @@ body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'
 .userbar a{color:#2b56d8;text-decoration:none;font-weight:600}
 .userbar a:hover{text-decoration:underline}
 
-.footerbar{height:36px;display:flex;align-items:center;justify-content:flex-end;gap:16px;padding:0 16px;border-top:1px solid #e6eef9;background:#fff;color:#54708b}
+.footerbar{
+  height:36px;display:flex;align-items:center;justify-content:flex-end;gap:16px;
+  padding:0 16px;border-top:1px solid #e6eef9;background:#fff;color:#54708b;
+  position:sticky; bottom:0; z-index:4;
+}
 
 /* ================== Views / Cards ================== */
-.view-root{flex:1;padding:20px}
+.view-root{
+  flex:1;
+  padding:20px;
+  overflow:auto;                  /* <- scroll só aqui */
+  min-height:0;                   /* evita “estourar” o flex */
+}
 .card{background:#fff;border:1px solid #e8eef7;border-radius:14px;box-shadow:0 8px 18px rgba(21,78,210,.06);padding:18px}
 h3{margin:8px 0 12px}
 
@@ -51,12 +95,12 @@ h3{margin:8px 0 12px}
 /* ================== Navegação ================== */
 .nav{
   padding:10px 12px 80px; /* espaço para o footer do menu */
-  overflow-y:auto;
+  /* overflow-y:auto;  -> agora quem rola é a própria .sidebar */
   display:flex; flex-direction:column; gap:12px;
 }
 .nav-top{display:flex;flex-direction:column;gap:12px}
 .nav-bottom{
-  position:absolute; left:12px; right:12px; bottom:12px;  /* literalmente no final */
+  position:absolute; left:12px; right:12px; bottom:12px;
   display:flex; flex-direction:column; gap:12px;
 }
 
@@ -64,7 +108,7 @@ h3{margin:8px 0 12px}
   width:100%;
   display:flex; align-items:center; gap:12px;
   background:rgba(255,255,255,.14);
-  color:#ffffff;                                      /* texto branco */
+  color:#ffffff;
   border:1px solid rgba(255,255,255,.25);
   border-radius:14px;
   padding:14px 14px;
@@ -73,9 +117,9 @@ h3{margin:8px 0 12px}
 }
 .nav-item:hover{background:rgba(255,255,255,.20)}
 .nav-item:active{transform:scale(.995)}
-.nav-item .label{font-weight:700;color:#fff}          /* garante branco */
+.nav-item .label{font-weight:700;color:#fff}
 .nav-item .caret{margin-left:auto;opacity:.92}
-.nav-item .icon{flex:0 0 18px}                        /* ícones alinhados */
+.nav-item .icon{flex:0 0 18px}
 
 /* -------- Submenus (expandido) -------- */
 .submenu{margin:6px 0 6px 34px;border-left:2px dashed rgba(255,255,255,.25);padding-left:12px;display:none}
@@ -94,10 +138,10 @@ h3{margin:8px 0 12px}
 
 /* ======= Flyout de submenu no modo recolhido ======= */
 .flyout{
-  position:fixed; left:80px;
+  position:fixed; left:var(--sidebar-w-collapsed);
   min-width:240px; background:#2f73f0; color:#fff;
   border:1px solid rgba(255,255,255,.25); border-radius:12px; padding:8px;
-  box-shadow:0 10px 24px rgba(22,57,145,.25); z-index:20; display:none;
+  box-shadow:0 10px 24px rgba(22,57,145,.25); z-index:30; display:none;
 }
 .flyout.open{display:block}
 .flyout a{display:flex;align-items:center;gap:10px;color:#fff;text-decoration:none;padding:10px;border-radius:10px}
@@ -118,21 +162,18 @@ h3{margin:8px 0 12px}
 .actions{display:flex;gap:10px}
 
 /* === NOVO: estrutura padronizada de formulários === */
-/* Container de campos (grid interno dos campos) */
 .form-fields{
   display:grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap:12px;
 }
-/* Garante que campos e ações ocupem a linha inteira da .form (que é grid) */
 .form > .form-fields{grid-column:1 / -1}
 .form > .form-actions{grid-column:1 / -1}
 
-/* Bloco de ações no rodapé, alinhado à direita */
 .form-actions{
   width:100%;
   display:flex;
-  justify-content:flex-end;     /* botões no canto inferior direito */
+  justify-content:flex-end;
   align-items:center;
   gap:8px;
   margin-top:12px;
@@ -172,3 +213,10 @@ h3{margin:8px 0 12px}
 /* ================== Toast ================== */
 .toast{position:fixed;right:20px;bottom:20px;background:#0f9d58;color:#fff;padding:12px 14px;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.15);z-index:100}
 .toast.err{background:#d93025}
+
+/* ================== Ajuste opcional mobile ================== */
+@media (max-width: 980px){
+  .content{ margin-left: 0; }
+  /* se quiser esconder a sidebar com classe .is-hidden via JS em mobile */
+  .sidebar.is-hidden{ transform: translateX(-100%); transition: transform .2s ease; }
+}

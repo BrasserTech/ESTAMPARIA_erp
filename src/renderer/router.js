@@ -19,9 +19,9 @@ const ROUTE_MAP = {
   '#/consulta/clientes': 'renderConsultaClientes',
   '#/consulta/servicos': 'renderConsultaServicos',
 
-  // >>> relatórios (novos)
-  '#/relatorios/faturamento-diario': 'renderRelFatDiario',
-  '#/relatorios/por-cliente': 'renderRelFatPorCliente',
+  // Relatórios (separados por arquivo)
+  '#/relatorios/fat-diario': 'renderRelFatDiario',
+  '#/relatorios/fat-por-cliente': 'renderRelFatPorCliente',
   '#/relatorios/historico-comercial': 'renderRelHistoricoComercial',
 
   // >>> ADIÇÃO: novas rotas de consulta (Entradas/Saídas)
