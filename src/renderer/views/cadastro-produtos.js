@@ -5,6 +5,8 @@ window.renderCadastroProdutos = function () {
     html: `
       <div class="card">
         <form class="form" id="form-prod" autocomplete="off">
+          <div id="p-status" style="display:none;margin-bottom:10px;padding:8px 10px;border-radius:8px;font-size:14px"></div>
+
           <div class="form-fields">
             <div style="grid-column:1 / -1">
               <label class="label">Nome*</label>
@@ -41,9 +43,8 @@ window.renderCadastroProdutos = function () {
             </div>
           </div>
 
-          <!-- Botões no rodapé, à direita -->
           <div class="form-actions">
-            <button type="submit" class="button">Salvar</button>
+            <button type="submit" class="button" id="p-salvar">Salvar</button>
             <button type="reset" class="button outline" id="p-reset">Limpar</button>
           </div>
         </form>
@@ -53,28 +54,74 @@ window.renderCadastroProdutos = function () {
       const { ipcRenderer } = require('electron');
       const $ = (id) => document.getElementById(id);
 
+      // ---- helpers de feedback visual (fallback ao toast) ----
+      const statusBox = $('p-status');
+      function showStatus(msg, isError = false) {
+        if (typeof toast === 'function') {
+          toast(msg, !!isError);
+          return;
+        }
+        statusBox.style.display = 'block';
+        statusBox.style.background = isError ? '#fee2e2' : '#ecfdf5';
+        statusBox.style.color = isError ? '#991b1b' : '#065f46';
+        statusBox.style.border = isError ? '1px solid #fecaca' : '1px solid #a7f3d0';
+        statusBox.textContent = msg;
+        // esconde depois de 3s
+        clearTimeout(showStatus._t);
+        showStatus._t = setTimeout(() => { statusBox.style.display = 'none'; }, 3000);
+      }
+
+      let isSaving = false;
+      const btnSalvar = $('p-salvar');
+
+      function setSaving(state) {
+        isSaving = state;
+        btnSalvar.disabled = state;
+        btnSalvar.textContent = state ? 'Salvando…' : 'Salvar';
+      }
+
       function resetAll() {
         $('form-prod').reset();
         $('p-emp-id').value = '';
         $('p-emp').value = '';
+        $('p-vcompra').value = '0';
         $('p-nome').focus();
       }
 
+      // Lookup por botão
       $('p-emp-lupa').addEventListener('click', () => {
-        if (typeof openLookup !== 'function') return toast('Lookup não carregado.', true);
+        if (typeof openLookup !== 'function') return showStatus('Lookup não carregado.', true);
         openLookup('empresas', ({ id, label }) => {
           $('p-emp-id').value = String(id);
           $('p-emp').value = label;
         });
       });
 
-      $('p-reset').addEventListener('click', resetAll);
+      // Lookup por F8
+      window.addEventListener('keydown', (ev) => {
+        if (ev.key === 'F8') {
+          ev.preventDefault();
+          $('p-emp-lupa').click();
+        }
+      });
+
+      $('p-reset').addEventListener('click', (e) => {
+        e.preventDefault();
+        resetAll();
+        showStatus('Formulário limpo.');
+      });
 
       $('form-prod').addEventListener('submit', async (e) => {
         e.preventDefault();
+        if (isSaving) return;
+
         try {
           const nome = ($('p-nome').value || '').trim();
-          if (!nome) return toast('Informe o nome do produto.', true);
+          if (!nome) {
+            showStatus('Informe o nome do produto.', true);
+            $('p-nome').focus();
+            return;
+          }
 
           const valorcompra = Number($('p-vcompra').value || '0');
           let valorvenda = $('p-vvenda').value ? Number($('p-vvenda').value) : NaN;
@@ -90,11 +137,16 @@ window.renderCadastroProdutos = function () {
             categoria: 1
           };
 
+          setSaving(true);
           await ipcRenderer.invoke('produtos:criar', payload);
-          toast('Produto salvo!');
+
+          // sucesso garantido: confirma e limpa
+          showStatus('Produto salvo!');
           resetAll();
         } catch (err) {
-          toast('Erro ao salvar: ' + err.message, true);
+          showStatus('Erro ao salvar: ' + (err && err.message ? err.message : String(err)), true);
+        } finally {
+          setSaving(false);
         }
       });
 

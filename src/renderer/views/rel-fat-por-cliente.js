@@ -93,7 +93,36 @@ window.renderRelFatPorCliente = function () {
       const todayISO = () => new Date().toISOString().slice(0,10);
       const firstOfMonth = () => { const d=new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0,10); };
       const moeda = (n)=>Number(n||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
-      const fmtBr = (iso)=>{ if(!iso) return ''; const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; };
+
+      // Formatação de data robusta
+      function toBrDate(val){
+        if (!val && val !== 0) return '';
+        const s = String(val);
+
+        // 1) ISO YYYY-MM-DD...
+        const iso = s.match(/\d{4}-\d{2}-\d{2}/);
+        if (iso) {
+          const [y,m,d] = iso[0].split('-');
+          return `${d}/${m}/${y}`;
+        }
+
+        // 2) Já em DD/MM/AAAA
+        const dmy = s.match(/\b(\d{2})\/(\d{2})\/(\d{4})\b/);
+        if (dmy) return dmy[0];
+
+        // 3) Date-like (ex.: "Sat Sep 06 2025 ...")
+        const ms = Date.parse(s);
+        if (!Number.isNaN(ms)) {
+          const d = new Date(ms);
+          const dd = String(d.getDate()).padStart(2,'0');
+          const mm = String(d.getMonth()+1).padStart(2,'0');
+          const yy = d.getFullYear();
+          return `${dd}/${mm}/${yy}`;
+        }
+
+        // 4) Não conseguiu inferir
+        return '';
+      }
 
       $('fpc-dtini').value = firstOfMonth();
       $('fpc-dtfim').value  = todayISO();
@@ -140,7 +169,7 @@ window.renderRelFatPorCliente = function () {
             ? docs.map(r=>`
                 <tr>
                   <td>${r.codigo}</td>
-                  <td>${fmtBr(String(r.data).slice(0,10))}</td>
+                  <td>${toBrDate(r.data)}</td>
                   <td>${r.cliente||''}</td>
                   <td class="txt-right">${moeda(r.total)}</td>
                   <td>${(r.mov||'').toLowerCase()}</td>
@@ -181,8 +210,8 @@ window.renderRelFatPorCliente = function () {
           <body>
             <h1>Relatório: Faturamento por Cliente</h1>
             <div class="cap muted">
-              De: <b>${filters?.dtini ? filters.dtini.split('-').reverse().join('/') : ''}</b>
-              • Até: <b>${filters?.dtfim ? filters.dtfim.split('-').reverse().join('/') : ''}</b>
+              De: <b>${toBrDate(filters?.dtini)}</b>
+              • Até: <b>${toBrDate(filters?.dtfim)}</b>
               • Movimento: <b>${fmtMov}</b>
               ${filters?.cliforId ? ' • Cliente: <b>Filtrado</b>' : ''}
             </div>
@@ -224,7 +253,7 @@ window.renderRelFatPorCliente = function () {
                       ? docs.map(r=>`
                         <tr>
                           <td>${r.codigo}</td>
-                          <td>${String(r.data).slice(0,10).split('-').reverse().join('/')}</td>
+                          <td>${toBrDate(r.data)}</td>
                           <td>${r.cliente||''}</td>
                           <td class="right">${Number(r.total||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td>
                           <td>${(r.mov||'').toLowerCase()}</td>

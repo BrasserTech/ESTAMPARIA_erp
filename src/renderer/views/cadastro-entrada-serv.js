@@ -90,7 +90,7 @@ window.renderCadastroEntradaServ = function () {
 
                   <div class="divider"></div>
                   <div class="actions">
-                    <button type="submit" class="button">Salvar Entrada</button>
+                    <button type="submit" class="button" id="ens-salvar">Salvar Entrada</button>
                     <button type="reset" class="button outline" id="ens-reset">Limpar</button>
                   </div>
                 </div>
@@ -122,6 +122,23 @@ window.renderCadastroEntradaServ = function () {
       const f2=(n)=>Number(n||0).toFixed(2);
       const f3=(n)=>Number(n||0).toFixed(3);
 
+      // --- estados de UI ---
+      let isSaving = false;
+      let isAdding = false;
+      const btnSalvar = $('ens-salvar');
+      const btnAdd    = $('ens-add-serv');
+
+      function setSaving(state){
+        isSaving = state;
+        btnSalvar.disabled = state;
+        btnSalvar.textContent = state ? 'Salvando…' : 'Salvar Entrada';
+      }
+      function setAdding(state){
+        isAdding = state;
+        btnAdd.disabled = state;
+        btnAdd.textContent = state ? 'Adicionando…' : 'Adicionar';
+      }
+
       // === Robustez IPC: tenta aliases só quando não houver handler registrado ===
       async function safeInvoke(channel, payload, aliases = []) {
         try {
@@ -134,10 +151,10 @@ window.renderCadastroEntradaServ = function () {
             msg.includes('not a function');
           if (isNoHandler && Array.isArray(aliases) && aliases.length) {
             for (const alt of aliases) {
-              try { return await ipcRenderer.invoke(alt, payload); } catch { /* tenta próximo alias */ }
+              try { return await ipcRenderer.invoke(alt, payload); } catch {}
             }
           }
-          throw err; // propaga erros reais (ex.: banco)
+          throw err;
         }
       }
 
@@ -192,13 +209,23 @@ window.renderCadastroEntradaServ = function () {
           $('ens-serv-id').value=String(id); $('ens-serv').value=label; $('ens-qtde').focus(); $('ens-qtde').select?.();
         });
       };
+      // F8 abre o lookup do campo focado (fornecedor/serviço)
+      window.addEventListener('keydown',(ev)=>{
+        if(ev.key==='F8'){
+          const el=document.activeElement;
+          if(el && el.id==='ens-forn'){ ev.preventDefault(); $('ens-forn-lupa').click(); }
+          else if(el && el.id==='ens-serv'){ ev.preventDefault(); $('ens-serv-lupa').click(); }
+        }
+      });
+
       $('ens-forn').addEventListener('change',()=>{ fornecedorId=Number($('ens-forn-id').value||'')||null; });
 
       const addKey=(ev)=>{ if(ev.key==='Enter'){ ev.preventDefault(); $('ens-add-serv').click(); } };
       ['ens-serv','ens-qtde','ens-vu'].forEach(id=>$(id).addEventListener('keydown',addKey));
 
-      // Adicionar serviço (consumindo valorunit/valortotal retornados pelos triggers)
+      // Adicionar serviço
       $('ens-add-serv').onclick=async()=>{
+        if(isAdding) return;
         try{
           const sid=Number($('ens-serv-id').value||'');
           const label=($('ens-serv').value||'').trim();
@@ -209,6 +236,7 @@ window.renderCadastroEntradaServ = function () {
           if(!(vu>=0)) return toast('Informe um valor unitário válido.',true);
 
           await ensure();
+          setAdding(true);
 
           const res = await safeInvoke(
             'movs:entrada:addServ',
@@ -221,23 +249,36 @@ window.renderCadastroEntradaServ = function () {
 
           itens.push({id:sid,label,qtde,vu:vuDb,vt:vtDb,rowId});
           $('ens-serv').value=''; $('ens-serv-id').value=''; $('ens-serv').focus(); render(); toast('Item adicionado.');
-        }catch(e){ toast('Erro ao adicionar: '+e.message,true); }
+        }catch(e){
+          toast('Erro ao adicionar: '+e.message,true);
+        }finally{
+          setAdding(false);
+        }
       };
 
       $('form-ens').onsubmit=async(e)=>{
         e.preventDefault();
+        if(isSaving) return;
         try{
           await ensure();
           const obs=($('ens-obs').value||'').trim()||null;
+
+          setSaving(true);
           await safeInvoke(
             'movs:entrada:finalizar',
             { chaveentrada:entradaChave, chaveclifor:fornecedorId, obs },
             ['movsentrada:finalizar','movs:entrada:close']
           );
-          toast('Entrada (serviços) salva!'); reset();
-        }catch(err){ toast('Erro ao salvar: '+err.message,true); }
+          toast('Entrada (serviços) salva!');
+          reset();
+        }catch(err){
+          toast('Erro ao salvar: '+(err?.message || String(err)),true);
+        }finally{
+          setSaving(false);
+        }
       };
-      $('ens-reset').onclick=reset;
+
+      $('ens-reset').onclick=(e)=>{ e.preventDefault(); reset(); toast('Formulário limpo.'); };
 
       render(); $('ens-forn').focus();
     }

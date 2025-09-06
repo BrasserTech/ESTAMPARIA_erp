@@ -106,7 +106,7 @@ window.renderCadastroEntradaProd = function () {
 
                   <div class="divider"></div>
                   <div class="actions">
-                    <button type="submit" class="button">Salvar Entrada</button>
+                    <button type="submit" class="button" id="enp-submit">Salvar Entrada</button>
                     <button type="reset" class="button outline" id="enp-reset">Limpar</button>
                   </div>
                 </div>
@@ -138,12 +138,46 @@ window.renderCadastroEntradaProd = function () {
     afterRender() {
       const { ipcRenderer } = require('electron');
 
-      // --------- Helpers ----------
+      // ---------- Seletores / utilidades ----------
       const $ = (id) => document.getElementById(id);
       const f2 = (n) => Number(n || 0).toFixed(2);
       const f3 = (n) => Number(n || 0).toFixed(3);
 
-      // *** CORREÇÃO: só cai nos aliases quando o erro for "No handler registered" ***
+      // ===== Toast robusto (fallback) =====
+      function safeToast(message, isError = false) {
+        try {
+          if (typeof window.toast === 'function') {
+            window.toast(message, isError);
+            return;
+          }
+        } catch (_) {}
+        let box = document.getElementById('__toast_fallback_box__');
+        if (!box) {
+          box = document.createElement('div');
+          box.id = '__toast_fallback_box__';
+          box.style.position = 'fixed';
+          box.style.right = '18px';
+          box.style.bottom = '18px';
+          box.style.zIndex = '99999';
+          document.body.appendChild(box);
+        }
+        const item = document.createElement('div');
+        item.textContent = message;
+        item.style.marginTop = '8px';
+        item.style.padding = '10px 14px';
+        item.style.borderRadius = '10px';
+        item.style.boxShadow = '0 10px 24px rgba(0,0,0,.12)';
+        item.style.background = isError ? '#fee2e2' : '#ecfdf5';
+        item.style.border = `1px solid ${isError ? '#fecaca' : '#bbf7d0'}`;
+        item.style.color = isError ? '#991b1b' : '#065f46';
+        item.style.fontSize = '14px';
+        item.style.maxWidth = '380px';
+        item.style.wordBreak = 'break-word';
+        box.appendChild(item);
+        setTimeout(() => item.remove(), 2600);
+      }
+
+      // *** INVOKE com aliases somente se for "No handler registered" ***
       async function safeInvoke(channel, payload, aliases = []) {
         try {
           return await ipcRenderer.invoke(channel, payload);
@@ -158,17 +192,16 @@ window.renderCadastroEntradaProd = function () {
               try { return await ipcRenderer.invoke(alt, payload); } catch { /* tenta próximo */ }
             }
           }
-          // propaga o erro real (ex.: "role 'paulo' não existe")
-          throw err;
+          throw err; // erro real (ex.: constraints / banco)
         }
       }
 
-      // --------- Estado ----------
+      // ---------- Estado ----------
       let fornecedorId = null;
       let entradaChave = null;
       const itens = []; // { id, label, qtde, vu, vt, rowId }
 
-      // --------- UI helpers ----------
+      // ---------- UI helpers ----------
       function recalc() {
         $('enp-total').value = f2(itens.reduce((a,i)=>a + Number(i.vt || 0), 0));
       }
@@ -200,8 +233,9 @@ window.renderCadastroEntradaProd = function () {
               const ix = itens.findIndex(x => x.rowId === rowId);
               if (ix >= 0) itens.splice(ix, 1);
               render();
+              safeToast('Item removido.');
             } catch (e) {
-              toast('Erro ao remover: ' + e.message, true);
+              safeToast('Erro ao remover: ' + (e?.message || e), true);
             }
           });
         });
@@ -227,31 +261,51 @@ window.renderCadastroEntradaProd = function () {
         const { chave } = await safeInvoke(
           'movs:entrada:ensure',
           { chaveclifor: fornecedorId, ativo: 1 },
-          ['movsentrada:ensure', 'movs:entrada:createHeader'] // continua listado; só cai aqui se faltar o handler principal
+          ['movsentrada:ensure', 'movs:entrada:createHeader']
         );
         entradaChave = chave;
         return chave;
       }
 
-      // --------- Lookups ----------
-      $('enp-forn-lupa').onclick = () => {
-        if (typeof openLookup !== 'function') return toast('Lookup não carregado.', true);
-        openLookup('fornecedores', ({ id, label }) => {
+      // ---------- Lookups ----------
+      function openFornecedoresLookup() {
+        if (typeof window.openLookup !== 'function') {
+          safeToast('Lookup não carregado.', true);
+          return;
+        }
+        window.openLookup('fornecedores', ({ id, label }) => {
           $('enp-forn-id').value = String(id);
           $('enp-forn').value   = label;
           fornecedorId = id;
           $('enp-prod').focus();
         });
-      };
-      $('enp-prod-lupa').onclick = () => {
-        if (typeof openLookup !== 'function') return toast('Lookup não carregado.', true);
-        openLookup('produtos', ({ id, label }) => {
+      }
+      function openProdutosLookup() {
+        if (typeof window.openLookup !== 'function') {
+          safeToast('Lookup não carregado.', true);
+          return;
+        }
+        window.openLookup('produtos', ({ id, label }) => {
           $('enp-prod-id').value = String(id);
           $('enp-prod').value   = label;
           $('enp-qtde').focus();
           $('enp-qtde').select?.();
         });
-      };
+      }
+
+      $('enp-forn-lupa').onclick = openFornecedoresLookup;
+      $('enp-prod-lupa').onclick = openProdutosLookup;
+
+      // F8: abre fornecedores se foco está no bloco de fornecedor; caso contrário, produtos
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'F8') {
+          e.preventDefault();
+          const ae = document.activeElement;
+          if (ae && (ae.id === 'enp-forn' || ae.id === 'enp-forn-id')) openFornecedoresLookup();
+          else openProdutosLookup();
+        }
+      });
+
       $('enp-forn').addEventListener('change', () => {
         fornecedorId = Number($('enp-forn-id').value || '') || null;
       });
@@ -260,17 +314,41 @@ window.renderCadastroEntradaProd = function () {
       const addKey = (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); $('enp-add-prod').click(); } };
       ['enp-prod','enp-qtde','enp-vu'].forEach(id => $(id).addEventListener('keydown', addKey));
 
-      // --------- Adicionar Item (consome valortotal retornado) ----------
-      $('enp-add-prod').onclick = async () => {
-        try {
-          const pid  = Number($('enp-prod-id').value || '');
-          const label = ($('enp-prod').value || '').trim();
-          const qtde = Number($('enp-qtde').value || '0');
-          const vu   = Number($('enp-vu').value   || '0');
+      // ---------- Botões com estado ----------
+      const btnAdd = $('enp-add-prod');
+      const btnAddDefault = btnAdd.textContent;
+      const btnSubmit = $('enp-submit');
+      const btnSubmitDefault = btnSubmit.textContent;
 
-          if (!pid)        return toast('Selecione um produto (F8 ou lupa).', true);
-          if (!(qtde > 0)) return toast('Informe uma quantidade válida.', true);
-          if (!(vu >= 0))  return toast('Informe um valor unitário válido.', true);
+      function setBusy(button, busy, labelBusy) {
+        if (!button) return;
+        button.disabled = busy;
+        if (busy) {
+          button.dataset._default = button.dataset._default || button.textContent;
+          button.textContent = labelBusy || 'Processando…';
+          button.classList.add('is-loading');
+        } else {
+          button.textContent = button.dataset._default || button.textContent || '';
+          if (!button.textContent) button.textContent = btnAdd === button ? btnAddDefault : btnSubmitDefault;
+          button.classList.remove('is-loading');
+        }
+      }
+
+      // ---------- Adicionar Item ----------
+      $('enp-add-prod').onclick = async () => {
+        if (btnAdd.disabled) return;
+        try {
+          const pid  = Number(($('enp-prod-id').value || '').trim());
+          const label = ($('enp-prod').value || '').trim();
+          let qtde = Number(($('enp-qtde').value || '0').replace(',', '.'));
+          let vu   = Number(($('enp-vu').value   || '0').replace(',', '.'));
+
+          if (!pid)        return safeToast('Selecione um produto (F8 ou lupa).', true);
+          if (!Number.isFinite(qtde) || !(qtde > 0)) return safeToast('Informe uma quantidade válida.', true);
+          if (!Number.isFinite(vu)   || vu < 0)      return safeToast('Informe um valor unitário válido.', true);
+          if (!fornecedorId)         return safeToast('Informe o fornecedor antes de adicionar itens.', true);
+
+          setBusy(btnAdd, true, 'Adicionando…');
 
           await ensure();
 
@@ -284,19 +362,33 @@ window.renderCadastroEntradaProd = function () {
           const vtDb  = (res?.valortotal ?? (qtde * vuDb));
 
           itens.push({ id: pid, label, qtde, vu: vuDb, vt: vtDb, rowId });
-          $('enp-prod').value = ''; $('enp-prod-id').value = '';
+
+          // limpa campos do produto e mantém fluxo para novo item
+          $('enp-prod').value = '';
+          $('enp-prod-id').value = '';
+          $('enp-qtde').value = '1';
+          $('enp-vu').value   = '0';
           $('enp-prod').focus();
+
           render();
-          toast('Item adicionado.');
+          safeToast('Item adicionado.');
         } catch (e) {
-          toast('Erro ao adicionar: ' + e.message, true);
+          safeToast('Erro ao adicionar: ' + (e?.message || e), true);
+        } finally {
+          setBusy(btnAdd, false);
         }
       };
 
-      // --------- Salvar (finalizar) ----------
+      // ---------- Salvar (finalizar) ----------
       $('form-enp').onsubmit = async (e) => {
         e.preventDefault();
+        if (btnSubmit.disabled) return;
         try {
+          if (!fornecedorId) return safeToast('Informe o fornecedor.', true);
+          if (!itens.length)  return safeToast('Adicione ao menos um item.', true);
+
+          setBusy(btnSubmit, true, 'Salvando…');
+
           await ensure();
           const obs = ($('enp-obs').value || '').trim() || null;
 
@@ -306,14 +398,21 @@ window.renderCadastroEntradaProd = function () {
             ['movsentrada:finalizar', 'movs:entrada:close']
           );
 
-          toast('Entrada (produtos) salva!');
+          safeToast('Entrada (produtos) salva!');
           reset();
         } catch (err) {
-          toast('Erro ao salvar: ' + err.message, true);
+          safeToast('Erro ao salvar: ' + (err?.message || err), true);
+        } finally {
+          setBusy(btnSubmit, false);
         }
       };
 
-      $('enp-reset').onclick = reset;
+      // ---------- Reset ----------
+      $('enp-reset').onclick = (e) => {
+        e.preventDefault();
+        reset();
+        safeToast('Formulário limpo.');
+      };
 
       // Inicial
       render();

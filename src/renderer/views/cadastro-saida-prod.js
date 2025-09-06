@@ -100,7 +100,7 @@ window.renderCadastroSaidaProd = function () {
 
                   <div class="divider"></div>
                   <div class="actions">
-                    <button type="submit" class="button">Salvar Saída</button>
+                    <button type="submit" class="button" id="sop-submit">Salvar Saída</button>
                     <button type="reset" class="button outline" id="sop-reset">Limpar</button>
                   </div>
                 </div>
@@ -134,96 +134,199 @@ window.renderCadastroSaidaProd = function () {
       const f2 = (n) => Number(n||0).toFixed(2);
       const f3 = (n) => Number(n||0).toFixed(3);
 
-      // Lista grande de aliases para funcionar em qualquer nomenclatura do IPC
-      const ENSURE_ALIASES     = ['movssaida:ensure','movs:saida:createHeader','movs:saidaensure','movssaida:ensure','saidas:ensure','movs:ensure:saida'];
+      // ===== Toast robusto (fallback) =====
+      function safeToast(message, isError = false) {
+        try {
+          if (typeof window.toast === 'function') { window.toast(message, isError); return; }
+        } catch(_) {}
+        let box = document.getElementById('__toast_fallback_box__');
+        if (!box) {
+          box = document.createElement('div');
+          box.id = '__toast_fallback_box__';
+          box.style.position = 'fixed';
+          box.style.right = '18px';
+          box.style.bottom = '18px';
+          box.style.zIndex = '99999';
+          document.body.appendChild(box);
+        }
+        const item = document.createElement('div');
+        item.textContent = message;
+        item.style.marginTop = '8px';
+        item.style.padding = '10px 14px';
+        item.style.borderRadius = '10px';
+        item.style.boxShadow = '0 10px 24px rgba(0,0,0,.12)';
+        item.style.background = isError ? '#fee2e2' : '#ecfdf5';
+        item.style.border = `1px solid ${isError ? '#fecaca' : '#bbf7d0'}`;
+        item.style.color = isError ? '#991b1b' : '#065f46';
+        item.style.fontSize = '14px';
+        item.style.maxWidth = '380px';
+        item.style.wordBreak = 'break-word';
+        box.appendChild(item);
+        setTimeout(() => item.remove(), 2600);
+      }
+
+      // ===== Aliases (usados apenas se não houver handler principal) =====
+      const ENSURE_ALIASES     = ['movssaida:ensure','movs:saida:createHeader','movs:saidaensure','saidas:ensure','movs:ensure:saida'];
       const ADD_ALIASES        = ['movssaida:addProd','movs:saida:addProduto','movs:saida:addprod','saidas:addProd'];
       const REM_ALIASES        = ['movssaida:remProd','movs:saida:removeProd','movs:saida:remProduto','saidas:remProd'];
       const FINALIZAR_ALIASES  = ['movssaida:finalizar','movs:saida:close','saidas:finalizar'];
 
-      async function safeInvoke(channel, payload, aliases=[]) {
-        try { return await ipcRenderer.invoke(channel, payload); }
-        catch (err) {
-          for (const alt of aliases) {
-            try { return await ipcRenderer.invoke(alt, payload); } catch {}
+      async function safeInvoke(channel, payload, aliases = []) {
+        try {
+          return await ipcRenderer.invoke(channel, payload);
+        } catch (err) {
+          const msg = String(err?.message || err);
+          const isNoHandler =
+            msg.includes('No handler registered') ||
+            msg.includes('has no listeners') ||
+            msg.includes('not a function');
+          if (isNoHandler && Array.isArray(aliases) && aliases.length) {
+            for (const alt of aliases) {
+              try { return await ipcRenderer.invoke(alt, payload); } catch { /* tenta próximo */ }
+            }
           }
           throw err;
         }
       }
 
-      let clienteId=null, saidaChave=null;
-      const itens=[];
+      // ===== Estado =====
+      let clienteId = null;
+      let saidaChave = null;
+      const itens = []; // { id, label, qtde, vu, vt, rowId }
 
-      function recalc(){ $('sop-total').value = f2(itens.reduce((a,i)=>a + Number(i.vt||0), 0)); }
-      function render(){
+      // ===== UI helpers =====
+      function recalc() {
+        $('sop-total').value = f2(itens.reduce((a,i)=>a + Number(i.vt || 0), 0));
+      }
+      function render() {
         const body = $('sop-itens');
-        if (!itens.length){
+        if (!itens.length) {
           body.innerHTML = '<tr><td class="empty-row" colspan="5">Itens adicionados serão exibidos nessa tabela</td></tr>';
           return recalc();
         }
-        body.innerHTML = itens.map(it=>`
+        body.innerHTML = itens.map(it => `
           <tr>
             <td>${it.label}</td>
             <td class="txt-right">${f3(it.qtde)}</td>
             <td class="txt-right">${f2(it.vu)}</td>
             <td class="txt-right">${f2(it.vt)}</td>
             <td><button type="button" class="btn-ghost btn-rem" data-id="${it.rowId}">Remover</button></td>
-          </tr>`).join('');
-        body.querySelectorAll('.btn-rem').forEach(b=>b.onclick=async()=>{
-          try{
+          </tr>
+        `).join('');
+
+        body.querySelectorAll('.btn-rem').forEach(b => b.onclick = async () => {
+          try {
             const rowId = Number(b.dataset.id);
-            await safeInvoke('movs:saida:remProd',{ itemsaidaprod_chave: rowId }, REM_ALIASES);
-            const ix = itens.findIndex(x=>x.rowId===rowId); if(ix>=0) itens.splice(ix,1);
+            await safeInvoke('movs:saida:remProd', { itemsaidaprod_chave: rowId }, REM_ALIASES);
+            const ix = itens.findIndex(x => x.rowId === rowId);
+            if (ix >= 0) itens.splice(ix, 1);
             render();
-          }catch(e){ toast('Erro ao remover: '+e.message, true); }
+            safeToast('Item removido.');
+          } catch (e) {
+            safeToast('Erro ao remover: ' + (e?.message || e), true);
+          }
         });
+
         recalc();
       }
-
-      function reset(){
-        $('form-sop').reset(); clienteId=null; saidaChave=null; itens.length=0;
-        ['sop-cli','sop-cli-id','sop-prod','sop-prod-id'].forEach(i=>$(i).value='');
-        $('sop-qtde').value='1'; $('sop-vu').value='0'; $('sop-total').value='0.00';
-        render(); $('sop-cli').focus();
+      function reset() {
+        $('form-sop').reset();
+        clienteId = null;
+        saidaChave = null;
+        itens.length = 0;
+        ['sop-cli','sop-cli-id','sop-prod','sop-prod-id'].forEach(i => { $(i).value = ''; });
+        $('sop-qtde').value = '1';
+        $('sop-vu').value   = '0';
+        $('sop-total').value = '0.00';
+        render();
+        $('sop-cli').focus();
       }
 
-      async function ensure(){
+      async function ensure() {
         if (saidaChave) return saidaChave;
         if (!clienteId) throw new Error('Informe o cliente.');
         const { chave } = await safeInvoke('movs:saida:ensure', { chaveclifor: clienteId, ativo: 1 }, ENSURE_ALIASES);
-        saidaChave = chave; return chave;
+        saidaChave = chave;
+        return chave;
       }
 
-      // lookups
-      $('sop-cli-lupa').onclick=()=>{
-        if (typeof openLookup!=='function') return toast('Lookup não carregado.', true);
-        openLookup('clientes',({id,label})=>{
-          $('sop-cli-id').value=String(id); $('sop-cli').value=label; clienteId=id; $('sop-prod').focus();
+      // ===== Lookups + F8 contextual =====
+      function openClientesLookup() {
+        if (typeof window.openLookup !== 'function') { safeToast('Lookup não carregado.', true); return; }
+        window.openLookup('clientes', ({ id, label }) => {
+          $('sop-cli-id').value = String(id);
+          $('sop-cli').value = label;
+          clienteId = id;
+          $('sop-prod').focus();
         });
-      };
-      $('sop-prod-lupa').onclick=()=>{
-        if (typeof openLookup!=='function') return toast('Lookup não carregado.', true);
-        openLookup('produtos',({id,label})=>{
-          $('sop-prod-id').value=String(id); $('sop-prod').value=label; $('sop-qtde').focus(); $('sop-qtde').select?.();
+      }
+      function openProdutosLookup() {
+        if (typeof window.openLookup !== 'function') { safeToast('Lookup não carregado.', true); return; }
+        window.openLookup('produtos', ({ id, label }) => {
+          $('sop-prod-id').value = String(id);
+          $('sop-prod').value = label;
+          $('sop-qtde').focus();
+          $('sop-qtde').select?.();
         });
-      };
-      $('sop-cli').addEventListener('change',()=>{ clienteId = Number($('sop-cli-id').value || '') || null; });
+      }
+      $('sop-cli-lupa').onclick = openClientesLookup;
+      $('sop-prod-lupa').onclick = openProdutosLookup;
 
-      const addKey=(ev)=>{ if(ev.key==='Enter'){ ev.preventDefault(); $('sop-add-prod').click(); } };
-      ['sop-prod','sop-qtde','sop-vu'].forEach(id=>$(id).addEventListener('keydown',addKey));
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'F8') {
+          e.preventDefault();
+          const ae = document.activeElement;
+          if (ae && (ae.id === 'sop-cli' || ae.id === 'sop-cli-id')) openClientesLookup();
+          else openProdutosLookup();
+        }
+      });
+      $('sop-cli').addEventListener('change', () => {
+        clienteId = Number($('sop-cli-id').value || '') || null;
+      });
 
-      $('sop-add-prod').onclick=async()=>{
-        try{
-          const pid  = Number($('sop-prod-id').value||'');
-          const label= ($('sop-prod').value||'').trim();
-          const qtde = Number($('sop-qtde').value||'0');
-          const vu   = Number($('sop-vu').value||'0');
-          if(!pid)        return toast('Selecione um produto (F8 ou lupa).',true);
-          if(!(qtde>0))   return toast('Informe uma quantidade válida.',true);
-          if(!(vu>=0))    return toast('Informe um valor unitário válido.',true);
+      // ===== Enter = adicionar =====
+      const addKey = (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); $('sop-add-prod').click(); } };
+      ['sop-prod','sop-qtde','sop-vu'].forEach(id => $(id).addEventListener('keydown', addKey));
+
+      // ===== Botões com estado =====
+      const btnAdd = $('sop-add-prod');
+      const btnSubmit = $('sop-submit');
+      const btnAddDefault = btnAdd.textContent;
+      const btnSubmitDefault = btnSubmit.textContent;
+
+      function setBusy(button, busy, labelBusy) {
+        if (!button) return;
+        button.disabled = busy;
+        if (busy) {
+          button.dataset._default = button.dataset._default || button.textContent;
+          button.textContent = labelBusy || 'Processando…';
+          button.classList.add('is-loading');
+        } else {
+          button.textContent = button.dataset._default || (button === btnAdd ? btnAddDefault : btnSubmitDefault);
+          button.classList.remove('is-loading');
+        }
+      }
+
+      // ===== Adicionar item =====
+      $('sop-add-prod').onclick = async () => {
+        if (btnAdd.disabled) return;
+        try {
+          const pid   = Number(($('sop-prod-id').value || '').trim());
+          const label = ($('sop-prod').value || '').trim();
+          let qtde = Number(String($('sop-qtde').value || '0').replace(',', '.'));
+          let vu   = Number(String($('sop-vu').value   || '0').replace(',', '.'));
+
+          if (!pid)               return safeToast('Selecione um produto (F8 ou lupa).', true);
+          if (!Number.isFinite(qtde) || !(qtde > 0)) return safeToast('Informe uma quantidade válida.', true);
+          if (!Number.isFinite(vu)   || vu < 0)      return safeToast('Informe um valor unitário válido.', true);
+          if (!clienteId)          return safeToast('Informe o cliente antes de adicionar itens.', true);
+
+          setBusy(btnAdd, true, 'Adicionando…');
 
           await ensure();
 
-          const res = await safeInvoke('movs:saida:addProd',
+          const res = await safeInvoke(
+            'movs:saida:addProd',
             { chavesaida: saidaChave, chaveproduto: pid, qtde, valorunit: vu },
             ADD_ALIASES
           );
@@ -232,28 +335,61 @@ window.renderCadastroSaidaProd = function () {
           const vtDb  = (res?.valortotal ?? (qtde * vuDb));
 
           itens.push({ id: pid, label, qtde, vu: vuDb, vt: vtDb, rowId });
-          $('sop-prod').value=''; $('sop-prod-id').value=''; $('sop-prod').focus();
+
+          // limpa campos do produto para próxima inclusão
+          $('sop-prod').value = '';
+          $('sop-prod-id').value = '';
+          $('sop-qtde').value = '1';
+          $('sop-vu').value   = '0';
+          $('sop-prod').focus();
+
           render();
-        }catch(e){ toast('Erro ao adicionar: '+e.message, true); }
+          safeToast('Item adicionado.');
+        } catch (e) {
+          safeToast('Erro ao adicionar: ' + (e?.message || e), true);
+        } finally {
+          setBusy(btnAdd, false);
+        }
       };
 
-      $('form-sop').onsubmit=async(e)=>{
+      // ===== Finalizar (salvar saída) =====
+      $('form-sop').onsubmit = async (e) => {
         e.preventDefault();
-        try{
+        if (btnSubmit.disabled) return;
+        try {
+          if (!clienteId) return safeToast('Informe o cliente.', true);
+          if (!itens.length) return safeToast('Adicione ao menos um item.', true);
+
+          setBusy(btnSubmit, true, 'Salvando…');
+
           await ensure();
-          const obs = ($('sop-obs').value||'').trim() || null;
-          await safeInvoke('movs:saida:finalizar',
+          const obs = ($('sop-obs').value || '').trim() || null;
+
+          await safeInvoke(
+            'movs:saida:finalizar',
             { chavesaida: saidaChave, chaveclifor: clienteId, obs },
             FINALIZAR_ALIASES
           );
-          toast('Saída (produtos) salva!');
+
+          safeToast('Saída (produtos) salva!');
           reset();
-        }catch(err){ toast('Erro ao salvar: '+err.message, true); }
+        } catch (err) {
+          safeToast('Erro ao salvar: ' + (err?.message || err), true);
+        } finally {
+          setBusy(btnSubmit, false);
+        }
       };
 
-      $('sop-reset').onclick=reset;
+      // ===== Reset =====
+      $('sop-reset').onclick = (e) => {
+        e.preventDefault();
+        reset();
+        safeToast('Formulário limpo.');
+      };
 
-      render(); $('sop-cli').focus();
+      // Inicial
+      render();
+      $('sop-cli').focus();
     }
   };
 };

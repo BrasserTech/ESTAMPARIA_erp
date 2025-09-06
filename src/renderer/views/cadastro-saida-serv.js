@@ -99,7 +99,7 @@ window.renderCadastroSaidaServ = function () {
 
                   <div class="divider"></div>
                   <div class="actions">
-                    <button type="submit" class="button">Salvar Saída</button>
+                    <button type="submit" class="button" id="sos-salvar">Salvar Saída</button>
                     <button type="reset" class="button outline" id="sos-reset">Limpar</button>
                   </div>
                 </div>
@@ -133,14 +133,33 @@ window.renderCadastroSaidaServ = function () {
       const f2 = (n) => Number(n||0).toFixed(2);
       const f3 = (n) => Number(n||0).toFixed(3);
 
-      const ENSURE_ALIASES     = ['movssaida:ensure','movs:saida:createHeader','movs:saidaensure','movssaida:ensure','saidas:ensure','movs:ensure:saida'];
-      const ADD_ALIASES        = ['movssaida:addServ','movs:saida:addServico','movs:saida:addserv','saidas:addServ'];
-      const REM_ALIASES        = ['movssaida:remServ','movs:saida:removeServ','movs:saida:remServico','saidas:remServ'];
-      const FINAL_ALIASES      = ['movssaida:finalizar','movs:saida:close','saidas:finalizar'];
+      // Estados de UI
+      let isSaving = false;
+      let isAdding = false;
+      const btnSalvar = $('sos-salvar');
+      const btnAdd    = $('sos-add-serv');
+
+      function setSaving(state){
+        isSaving = state;
+        btnSalvar.disabled = state;
+        btnSalvar.textContent = state ? 'Salvando…' : 'Salvar Saída';
+      }
+      function setAdding(state){
+        isAdding = state;
+        btnAdd.disabled = state;
+        btnAdd.textContent = state ? 'Adicionando…' : 'Adicionar';
+      }
+
+      // Canais (mantidos + aliases)
+      const ENSURE_ALIASES = ['movssaida:ensure','movs:saida:createHeader','movs:saidaensure','movssaida:ensure','saidas:ensure','movs:ensure:saida'];
+      const ADD_ALIASES    = ['movssaida:addServ','movs:saida:addServico','movs:saida:addserv','saidas:addServ'];
+      const REM_ALIASES    = ['movssaida:remServ','movs:saida:removeServ','movs:saida:remServico','saidas:remServ'];
+      const FINAL_ALIASES  = ['movssaida:finalizar','movs:saida:close','saidas:finalizar'];
 
       async function safeInvoke(channel, payload, aliases=[]) {
         try { return await ipcRenderer.invoke(channel, payload); }
         catch (err) {
+          // tenta aliases apenas se falhar
           for (const alt of aliases) { try { return await ipcRenderer.invoke(alt, payload); } catch {} }
           throw err;
         }
@@ -152,14 +171,17 @@ window.renderCadastroSaidaServ = function () {
       function recalc(){ $('sos-total').value = f2(itens.reduce((a,i)=>a+Number(i.vt||0),0)); }
       function render(){
         const body=$('sos-itens');
-        if(!itens.length){ body.innerHTML='<tr><td class="empty-row" colspan="5">Itens adicionados serão exibidos nessa tabela</td></tr>'; return recalc(); }
+        if(!itens.length){
+          body.innerHTML='<tr><td class="empty-row" colspan="5">Itens adicionados serão exibidos nessa tabela</td></tr>';
+          return recalc();
+        }
         body.innerHTML=itens.map(it=>`
           <tr>
             <td>${it.label}</td>
             <td class="txt-right">${f3(it.qtde)}</td>
             <td class="txt-right">${f2(it.vu)}</td>
             <td class="txt-right">${f2(it.vt)}</td>
-            <td><button type="button" class="btn-ghost btn-rem" data-id="\${it.rowId}">Remover</button></td>
+            <td><button type="button" class="btn-ghost btn-rem" data-id="${it.rowId}">Remover</button></td>
           </tr>`).join('');
         body.querySelectorAll('.btn-rem').forEach(b=>b.onclick=async()=>{
           try{
@@ -167,7 +189,7 @@ window.renderCadastroSaidaServ = function () {
             await safeInvoke('movs:saida:remServ',{ itemsaidaserv_chave: rowId }, REM_ALIASES);
             const ix=itens.findIndex(x=>x.rowId===rowId); if(ix>=0) itens.splice(ix,1);
             render();
-          }catch(e){ toast('Erro ao remover: '+e.message,true); }
+          }catch(e){ toast('Erro ao remover: '+(e?.message||String(e)),true); }
         });
         recalc();
       }
@@ -184,6 +206,7 @@ window.renderCadastroSaidaServ = function () {
         saidaChave=chave; return chave;
       }
 
+      // Lookups
       $('sos-cli-lupa').onclick=()=>{
         if(typeof openLookup!=='function') return toast('Lookup não carregado.',true);
         openLookup('clientes',({id,label})=>{
@@ -198,10 +221,21 @@ window.renderCadastroSaidaServ = function () {
       };
       $('sos-cli').addEventListener('change',()=>{ clienteId=Number($('sos-cli-id').value||'')||null; });
 
+      // Atalho F8 abre lookup do campo focado
+      window.addEventListener('keydown',(ev)=>{
+        if(ev.key==='F8'){
+          const el=document.activeElement;
+          if(el && el.id==='sos-cli'){ ev.preventDefault(); $('sos-cli-lupa').click(); }
+          else if(el && el.id==='sos-serv'){ ev.preventDefault(); $('sos-serv-lupa').click(); }
+        }
+      });
+
       const addKey=(ev)=>{ if(ev.key==='Enter'){ ev.preventDefault(); $('sos-add-serv').click(); } };
       ['sos-serv','sos-qtde','sos-vu'].forEach(id=>$(id).addEventListener('keydown',addKey));
 
+      // Adicionar serviço
       $('sos-add-serv').onclick=async()=>{
+        if(isAdding) return;
         try{
           const sid = Number($('sos-serv-id').value||'');
           const label = ($('sos-serv').value||'').trim();
@@ -212,6 +246,7 @@ window.renderCadastroSaidaServ = function () {
           if(!(vu>=0))  return toast('Informe um valor unitário válido.',true);
 
           await ensure();
+          setAdding(true);
 
           const res = await safeInvoke('movs:saida:addServ',
             { chavesaida:saidaChave, chaveservico:sid, qtde, valorunit:vu },
@@ -222,25 +257,42 @@ window.renderCadastroSaidaServ = function () {
           const vtDb  = (res?.valortotal ?? (qtde * vuDb));
 
           itens.push({id:sid,label,qtde,vu:vuDb,vt:vtDb,rowId});
-          $('sos-serv').value=''; $('sos-serv-id').value=''; $('sos-serv').focus(); render();
-        }catch(e){ toast('Erro ao adicionar: '+e.message,true); }
+          $('sos-serv').value=''; $('sos-serv-id').value=''; $('sos-serv').focus();
+          render();
+          toast('Item adicionado.');
+        }catch(e){
+          toast('Erro ao adicionar: '+(e?.message||String(e)),true);
+        }finally{
+          setAdding(false);
+        }
       };
 
+      // Salvar / Finalizar
       $('form-sos').onsubmit=async(e)=>{
         e.preventDefault();
+        if(isSaving) return;
         try{
           await ensure();
           const obs = ($('sos-obs').value||'').trim()||null;
+
+          setSaving(true);
           await safeInvoke('movs:saida:finalizar',
             { chavesaida:saidaChave, chaveclifor:clienteId, obs },
             FINAL_ALIASES
           );
-          toast('Saída (serviços) salva!'); reset();
-        }catch(err){ toast('Erro ao salvar: '+err.message,true); }
+          toast('Saída (serviços) salva!');
+          reset();
+        }catch(err){
+          toast('Erro ao salvar: '+(err?.message||String(err)),true);
+        }finally{
+          setSaving(false);
+        }
       };
 
-      $('sos-reset').onclick=reset;
+      // Limpar
+      $('sos-reset').onclick=(e)=>{ e.preventDefault(); reset(); toast('Formulário limpo.'); };
 
+      // Inicial
       render(); $('sos-cli').focus();
     }
   };

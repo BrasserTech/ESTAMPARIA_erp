@@ -58,7 +58,7 @@ window.renderCadastroEntrada = function () {
           </div>
 
           <div class="actions" style="margin-top:12px; gap:8px">
-            <button type="submit" class="button">Salvar Entrada</button>
+            <button type="submit" class="button" id="ent-salvar">Salvar Entrada</button>
             <button type="reset" class="button outline" id="ent-reset">Limpar</button>
           </div>
         </form>
@@ -72,17 +72,25 @@ window.renderCadastroEntrada = function () {
       let entradaChave = null; // rascunho criado ao 1º "Adicionar"
       const itens = []; // [{t:'p'|'s', itemRowChave: number, display: string}]
 
+      // estados de proteção de UI
+      let isSaving = false;
+      let isAddingProd = false;
+      let isAddingServ = false;
+
       const elFornSearch = document.getElementById('ent-forn-search');
       const elFornList = document.getElementById('ent-forn-list');
       const elFornHidden = document.getElementById('ent-forn-id');
 
       const elProdSearch = document.getElementById('ent-prod-search');
       const elProdList = document.getElementById('ent-prod-list');
+      const btnAddProd = document.getElementById('ent-add-prod');
 
       const elServSearch = document.getElementById('ent-serv-search');
       const elServList = document.getElementById('ent-serv-list');
+      const btnAddServ = document.getElementById('ent-add-serv');
 
       const elItens = document.getElementById('ent-itens');
+      const btnSalvar = document.getElementById('ent-salvar');
 
       /* ---------- util ---------- */
       function pickIdFromDatalist(inputEl, listEl) {
@@ -95,6 +103,22 @@ window.renderCadastroEntrada = function () {
       function displayFromInput(inputEl) {
         return (inputEl.value || '').trim();
       }
+      function setSaving(state) {
+        isSaving = state;
+        btnSalvar.disabled = state;
+        btnSalvar.textContent = state ? 'Salvando…' : 'Salvar Entrada';
+      }
+      function setAddingProd(state) {
+        isAddingProd = state;
+        btnAddProd.disabled = state;
+        btnAddProd.textContent = state ? 'Adicionando…' : 'Adicionar';
+      }
+      function setAddingServ(state) {
+        isAddingServ = state;
+        btnAddServ.disabled = state;
+        btnAddServ.textContent = state ? 'Adicionando…' : 'Adicionar';
+      }
+
       function renderItens() {
         if (!itens.length) {
           elItens.innerHTML = `<tr><td colspan="3" style="text-align:center;color:#78909c;background:#fff">Sem itens</td></tr>`;
@@ -120,7 +144,7 @@ window.renderCadastroEntrada = function () {
               if (ix >= 0) itens.splice(ix, 1);
               renderItens();
             } catch (e) {
-              toast('Erro ao remover item: ' + e.message, true);
+              toast('Erro ao remover item: ' + (e?.message || String(e)), true);
             }
           });
         });
@@ -159,7 +183,10 @@ window.renderCadastroEntrada = function () {
         elFornSearch.value = '';
         elProdSearch.value = '';
         elServSearch.value = '';
+        const totalEl = document.getElementById('ent-total');
+        totalEl.value = '0';
         renderItens();
+        elFornSearch.focus();
       }
 
       /* ---------- eventos ---------- */
@@ -173,34 +200,44 @@ window.renderCadastroEntrada = function () {
       });
 
       document.getElementById('ent-add-prod').addEventListener('click', async () => {
+        if (isAddingProd) return;
         try {
           const prodChave = pickIdFromDatalist(elProdSearch, elProdList);
           if (!prodChave) return toast('Selecione um produto válido', true);
           await ensureEntrada();
+          setAddingProd(true);
           const { chave: itemRowChave } = await ipcRenderer.invoke('movs:entrada:addProd', {
             chaveentrada: entradaChave, chaveproduto: prodChave
           });
           itens.push({ t: 'p', itemRowChave, display: displayFromInput(elProdSearch) });
           elProdSearch.value = '';
           renderItens();
+          toast('Produto adicionado.');
         } catch (e) {
-          toast('Erro ao adicionar produto: ' + e.message, true);
+          toast('Erro ao adicionar produto: ' + (e?.message || String(e)), true);
+        } finally {
+          setAddingProd(false);
         }
       });
 
       document.getElementById('ent-add-serv').addEventListener('click', async () => {
+        if (isAddingServ) return;
         try {
           const servChave = pickIdFromDatalist(elServSearch, elServList);
           if (!servChave) return toast('Selecione um serviço válido', true);
           await ensureEntrada();
+          setAddingServ(true);
           const { chave: itemRowChave } = await ipcRenderer.invoke('movs:entrada:addServ', {
             chaveentrada: entradaChave, chaveservico: servChave
           });
           itens.push({ t: 's', itemRowChave, display: displayFromInput(elServSearch) });
           elServSearch.value = '';
           renderItens();
+          toast('Serviço adicionado.');
         } catch (e) {
-          toast('Erro ao adicionar serviço: ' + e.message, true);
+          toast('Erro ao adicionar serviço: ' + (e?.message || String(e)), true);
+        } finally {
+          setAddingServ(false);
         }
       });
 
@@ -208,6 +245,7 @@ window.renderCadastroEntrada = function () {
       const form = document.getElementById('form-ent');
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
+        if (isSaving) return;
         try {
           if (!fornecedorId) return toast('Informe o fornecedor (CLIFOR)', true);
           if (!entradaChave) await ensureEntrada(); // cria se ainda não criou
@@ -215,6 +253,7 @@ window.renderCadastroEntrada = function () {
           const total = Number(document.getElementById('ent-total').value || '0');
           const obs = (document.getElementById('ent-obs').value || '').trim() || null;
 
+          setSaving(true);
           await ipcRenderer.invoke('movs:entrada:finalizar', {
             chaveentrada: entradaChave,
             chaveclifor: fornecedorId,
@@ -225,15 +264,22 @@ window.renderCadastroEntrada = function () {
           toast('Entrada salva!');
           resetForm(); // limpa tudo (inclusive grid de itens)
         } catch (err) {
-          toast('Erro ao salvar: ' + err.message, true);
+          toast('Erro ao salvar: ' + (err?.message || String(err)), true);
+        } finally {
+          setSaving(false);
         }
       });
 
       // Limpar manual
-      document.getElementById('ent-reset').addEventListener('click', resetForm);
+      document.getElementById('ent-reset').addEventListener('click', (e) => {
+        e.preventDefault();
+        resetForm();
+        toast('Formulário limpo.');
+      });
 
       // inicial
       renderItens();
+      elFornSearch.focus();
     },
   };
 };

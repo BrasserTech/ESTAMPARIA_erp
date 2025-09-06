@@ -18,6 +18,7 @@ window.renderRelFaturamento = function () {
         .tbl thead th{background:#f7f9ff;border-bottom:1px solid #e8eef7;padding:10px;text-align:left;color:#10253f}
         .tbl td{border-bottom:1px solid #eef2f7;padding:10px}
         .txt-right{text-align:right}
+        .muted{color:#6b7a90}
       </style>
 
       <div class="rep-shell">
@@ -107,33 +108,111 @@ window.renderRelFaturamento = function () {
     afterRender() {
       const { ipcRenderer } = require('electron');
 
-      // helpers
+      // ---------- helpers ----------
       const $ = (id) => document.getElementById(id);
-      const fmtBr = (iso) => { if (!iso) return ''; const [y,m,d] = iso.split('-'); return `${d}/${m}/${y}`; };
-      const moeda = (n) => Number(n||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
-      const todayISO = () => new Date().toISOString().slice(0,10);
-      const firstOfMonth = () => { const d=new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0,10); };
+      const moeda = (n) => Number(n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+      const todayISO = () => new Date().toISOString().slice(0, 10);
+      const firstOfMonth = () => {
+        const d = new Date();
+        return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+      };
 
-      // defaults
+      // Toast seguro (fallback)
+      function safeToast(message, isError = false) {
+        try { if (typeof window.toast === 'function') return window.toast(message, isError); } catch (_) {}
+        console[isError ? 'error' : 'log'](message);
+      }
+
+      // ===== Formatadores de data tolerantes =====
+      function toDateSafe(v) {
+        if (v === null || v === undefined) return null;
+        if (v instanceof Date) return isNaN(v) ? null : v;
+
+        if (typeof v === 'number') {
+          // aceita epoch em segundos ou milissegundos
+          const ms = v < 1e12 ? v * 1000 : v;
+          const d = new Date(ms);
+          return isNaN(d) ? null : d;
+        }
+
+        const s = String(v).trim();
+        if (!s) return null;
+
+        // 1) pega ISO yyyy-mm-dd dentro da string
+        const mIso = s.match(/\d{4}-\d{2}-\d{2}/);
+        if (mIso) {
+          const d = new Date(mIso[0] + 'T00:00:00');
+          if (!isNaN(d)) return d;
+        }
+
+        // 2) dd/mm/aaaa dentro da string
+        const mBr = s.match(/\b(\d{2})\/(\d{2})\/(\d{2,4})\b/);
+        if (mBr) {
+          const [, dd, mm, yy] = mBr;
+          const yyyy = yy.length === 2 ? ('20' + yy) : yy;
+          const d = new Date(`${yyyy}-${mm}-${dd}T00:00:00`);
+          if (!isNaN(d)) return d;
+        }
+
+        // 3) tenta parse nativo (ex.: "Sat Sep 06 2025")
+        const dTxt = new Date(s);
+        if (!isNaN(dTxt)) return dTxt;
+
+        // 4) remove "undefined/" e tenta novamente
+        const s2 = s.replace(/(?:^|\/)undefined/gi, '').replace(/^\/+|\/+$/g, '').trim();
+        if (s2 && s2 !== s) {
+          const d2 = new Date(s2);
+          if (!isNaN(d2)) return d2;
+          const mIso2 = s2.match(/\d{4}-\d{2}-\d{2}/);
+          if (mIso2) {
+            const d3 = new Date(mIso2[0] + 'T00:00:00');
+            if (!isNaN(d3)) return d3;
+          }
+        }
+
+        return null;
+      }
+
+      // Se conseguir `Date` => dd/mm/aaaa; senão, retorna somente a parte legível
+      function fmtDataCell(v) {
+        const d = toDateSafe(v);
+        if (d) return d.toLocaleDateString('pt-BR');
+
+        const s = (v === null || v === undefined) ? '' : String(v);
+        if (!s) return '';
+
+        // remove "undefined/" e barras sobrando
+        let cleaned = s.replace(/(?:^|\/)undefined/gi, '').replace(/^\/+|\/+$/g, '').trim();
+        if (!cleaned) return '';
+
+        // se ainda houver "/", fica apenas com o último segmento (geralmente a parte legível)
+        if (cleaned.includes('/')) {
+          const parts = cleaned.split('/').map(x => x.trim()).filter(Boolean);
+          cleaned = parts[parts.length - 1] || cleaned;
+        }
+        return cleaned;
+      }
+
+      // ---------- defaults ----------
       $('fat-dtini').value = firstOfMonth();
-      $('fat-dtfim').value  = todayISO();
+      $('fat-dtfim').value = todayISO();
 
-      // lookups
-      const wireLookup = (btn,input,entity)=>{
-        $(btn).onclick = ()=>{
-          if(typeof openLookup!=='function') return toast('Lookup não disponível', true);
-          openLookup(entity, ({id,label})=>{
+      // ---------- lookups ----------
+      const wireLookup = (btn, input, entity) => {
+        $(btn).onclick = () => {
+          if (typeof openLookup !== 'function') return safeToast('Lookup não disponível', true);
+          openLookup(entity, ({ id, label }) => {
             $(input).value = label;
-            const hid = $( $(input).getAttribute('data-target-id') );
+            const hid = $(($(input).getAttribute('data-target-id')));
             if (hid) hid.value = String(id);
           });
         };
       };
-      wireLookup('fat-cli-lupa','fat-cli','clientes');
-      wireLookup('fat-emp-lupa','fat-emp','empresas');
+      wireLookup('fat-cli-lupa', 'fat-cli', 'clientes');
+      wireLookup('fat-emp-lupa', 'fat-emp', 'empresas');
 
-      // state
-      let lastData = { porDia: [], docs: [], totalPeriodo: 0 };
+      // ---------- estado ----------
+      let lastData = { porDia: [], docs: [], totalPeriodo: 0, filters: null };
 
       async function load() {
         const filters = {
@@ -146,57 +225,80 @@ window.renderRelFaturamento = function () {
 
         const resp = await ipcRenderer.invoke('rel:fatdiario:listar', filters);
         const porDia = Array.isArray(resp.porDia) ? resp.porDia : [];
-        const docs   = Array.isArray(resp.docs) ? resp.docs : [];
+        const docs = Array.isArray(resp.docs) ? resp.docs : [];
 
         // total (backend pode devolver totalPeriodo ou total)
-        const totalPeriodo = (resp.totalPeriodo ?? resp.total ?? porDia.reduce((a,b)=>a+Number(b.total||0),0)) || 0;
+        const totalPeriodo =
+          (resp.totalPeriodo ?? resp.total ?? porDia.reduce((a, b) => a + Number(b.total || 0), 0)) || 0;
 
         lastData = { porDia, docs, totalPeriodo, filters };
 
-        // render total
+        // total no topo
         $('fat-total').textContent = moeda(totalPeriodo);
 
-        // render por dia
-        $('fat-por-dia').innerHTML =
-          porDia.length
-            ? porDia.map(r=>`
-                <tr>
-                  <td>${fmtBr(String(r.dia).slice(0,10))}</td>
-                  <td class="txt-right">${moeda(r.total)}</td>
-                </tr>
-              `).join('')
-            : `<tr><td colspan="2" class="muted">Sem dados</td></tr>`;
+        // Totais por dia
+        $('fat-por-dia').innerHTML = porDia.length
+          ? porDia.map(r => `
+              <tr>
+                <td>${fmtDataCell(r.dia)}</td>
+                <td class="txt-right">${moeda(r.total)}</td>
+              </tr>
+            `).join('')
+          : `<tr><td colspan="2" class="muted">Sem dados</td></tr>`;
 
-        // render docs
-        $('fat-docs').innerHTML =
-          docs.length
-            ? docs.map(r=>`
-                <tr>
-                  <td>${r.codigo}</td>
-                  <td>${fmtBr(String(r.data).slice(0,10))}</td>
-                  <td>${r.cliente || ''}</td>
-                  <td class="txt-right">${moeda(r.total)}</td>
-                  <td>${(r.mov||'').charAt(0).toUpperCase()+String(r.mov||'').slice(1)}</td>
-                </tr>
-              `).join('')
-            : `<tr><td colspan="5" class="muted">Sem documentos</td></tr>`;
+        // Documentos
+        $('fat-docs').innerHTML = docs.length
+          ? docs.map(r => `
+              <tr>
+                <td>${r.codigo}</td>
+                <td>${fmtDataCell(r.data)}</td>
+                <td>${r.cliente || ''}</td>
+                <td class="txt-right">${moeda(r.total)}</td>
+                <td>${(r.mov || '').charAt(0).toUpperCase() + String(r.mov || '').slice(1)}</td>
+              </tr>
+            `).join('')
+          : `<tr><td colspan="5" class="muted">Sem documentos</td></tr>`;
       }
 
       $('fat-aplicar').onclick = load;
+
       $('fat-limpar').onclick = () => {
         $('fat-dtini').value = firstOfMonth();
-        $('fat-dtfim').value  = todayISO();
-        $('fat-cli').value = ''; $('fat-cli-id').value = '';
-        $('fat-emp').value = ''; $('fat-emp-id').value = '';
+        $('fat-dtfim').value = todayISO();
+        $('fat-cli').value = '';
+        $('fat-cli-id').value = '';
+        $('fat-emp').value = '';
+        $('fat-emp-id').value = '';
         $('fat-mov').value = 'saidas';
         load();
       };
 
-      // PDF (sem filtros; layout limpo)
+      // ---------- PDF ----------
       $('fat-pdf').onclick = () => {
-        const { porDia, docs, totalPeriodo, filters } = lastData;
-        const br = (s)=>s||'';
-        const fmtMov = {saidas:'saídas',entradas:'entradas',ambos:'ambos'}[filters?.movimento||'saidas'];
+        const { porDia, docs, totalPeriodo, filters } = lastData || {};
+        const fmtMov = { saidas: 'saídas', entradas: 'entradas', ambos: 'ambos' }[filters?.movimento || 'saidas'];
+
+        const porDiaRows = (porDia && porDia.length)
+          ? porDia.map(r =>
+              `<tr><td>${fmtDataCell(r.dia)}</td><td class="right">${moeda(r.total)}</td></tr>`
+            ).join('')
+          : `<tr><td colspan="2" class="muted">Sem dados</td></tr>`;
+
+        const docsRows = (docs && docs.length)
+          ? docs.map(r => `
+              <tr>
+                <td>${r.codigo}</td>
+                <td>${fmtDataCell(r.data)}</td>
+                <td>${r.cliente || ''}</td>
+                <td class="right">${moeda(r.total)}</td>
+                <td>${(r.mov || '').toLowerCase()}</td>
+              </tr>
+            `).join('')
+          : `<tr><td colspan="5" class="muted">Sem documentos</td></tr>`;
+
+        const filtroDe = filters?.dtini ? filters.dtini.split('-').reverse().join('/') : '';
+        const filtroAte = filters?.dtfim ? filters.dtfim.split('-').reverse().join('/') : '';
+
         const html = `
           <html>
           <head>
@@ -218,9 +320,8 @@ window.renderRelFaturamento = function () {
           </head>
           <body>
             <h1>Relatório de Faturamento</h1>
-            <div class="cap muted">De: <b>${br(filters?.dtini ? filters.dtini.split('-').reverse().join('/') : '')}</b>
-              • Até: <b>${br(filters?.dtfim ? filters.dtfim.split('-').reverse().join('/') : '')}</b>
-              • Movimento: <b>${fmtMov}</b>
+            <div class="cap muted">
+              De: <b>${filtroDe}</b> • Até: <b>${filtroAte}</b> • Movimento: <b>${fmtMov}</b>
             </div>
             <div class="total">${moeda(totalPeriodo)}</div>
 
@@ -228,17 +329,7 @@ window.renderRelFaturamento = function () {
               <h3 style="margin:0 0 6px 0">Totais por Dia</h3>
               <table>
                 <thead><tr><th style="width:60%">Dia</th><th class="right">Total (R$)</th></tr></thead>
-                <tbody>
-                  ${
-                    (porDia&&porDia.length)
-                      ? porDia.map(r=>`
-                        <tr>
-                          <td>${(String(r.dia).slice(0,10).split('-').reverse().join('/'))}</td>
-                          <td class="right">${moeda(r.total)}</td>
-                        </tr>`).join('')
-                      : `<tr><td colspan="2" class="muted">Sem dados</td></tr>`
-                  }
-                </tbody>
+                <tbody>${porDiaRows}</tbody>
               </table>
             </div>
 
@@ -254,29 +345,17 @@ window.renderRelFaturamento = function () {
                     <th style="width:80px">Mov</th>
                   </tr>
                 </thead>
-                <tbody>
-                  ${
-                    (docs&&docs.length)
-                      ? docs.map(r=>`
-                        <tr>
-                          <td>${r.codigo}</td>
-                          <td>${String(r.data).slice(0,10).split('-').reverse().join('/')}</td>
-                          <td>${r.cliente||''}</td>
-                          <td class="right">${moeda(r.total)}</td>
-                          <td>${(r.mov||'').toLowerCase()}</td>
-                        </tr>`).join('')
-                      : `<tr><td colspan="5" class="muted">Sem documentos</td></tr>`
-                  }
-                </tbody>
+                <tbody>${docsRows}</tbody>
               </table>
             </div>
           </body>
           </html>
         `;
+
         const w = window.open('', '_blank');
-        w.document.write(html); w.document.close();
-        // dá um tempo para o layout carregar
-        setTimeout(()=>{ w.focus(); w.print(); w.close(); }, 300);
+        w.document.write(html);
+        w.document.close();
+        setTimeout(() => { try { w.focus(); w.print(); } finally { w.close(); } }, 300);
       };
 
       // primeira carga

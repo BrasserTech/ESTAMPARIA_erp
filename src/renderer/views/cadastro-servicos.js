@@ -42,7 +42,7 @@ window.renderCadastroServicos = function () {
           </div>
 
           <div class="form-actions">
-            <button type="submit" class="button">Salvar</button>
+            <button type="submit" class="button" id="s-submit">Salvar</button>
             <button type="reset" class="button outline" id="s-reset">Limpar</button>
           </div>
         </form>
@@ -52,15 +52,60 @@ window.renderCadastroServicos = function () {
       const { ipcRenderer } = require('electron');
       const $ = (id) => document.getElementById(id);
 
-      // Lupa / F8 para Empresa
-      $('s-emp-lupa').addEventListener('click', () => {
-        if (typeof openLookup !== 'function') return toast('Lookup não carregado.', true);
-        openLookup('empresas', ({ id, label }) => {
+      // ===== Toast seguro com fallback =====
+      function safeToast(message, isError = false) {
+        try {
+          if (typeof window.toast === 'function') {
+            window.toast(message, isError);
+            return;
+          }
+        } catch (_) {}
+        let box = document.getElementById('__toast_fallback_box__');
+        if (!box) {
+          box = document.createElement('div');
+          box.id = '__toast_fallback_box__';
+          box.style.position = 'fixed';
+          box.style.right = '18px';
+          box.style.bottom = '18px';
+          box.style.zIndex = '99999';
+          document.body.appendChild(box);
+        }
+        const item = document.createElement('div');
+        item.textContent = message;
+        item.style.marginTop = '8px';
+        item.style.padding = '10px 14px';
+        item.style.borderRadius = '10px';
+        item.style.boxShadow = '0 10px 24px rgba(0,0,0,.12)';
+        item.style.background = isError ? '#fee2e2' : '#ecfdf5';
+        item.style.border = `1px solid ${isError ? '#fecaca' : '#bbf7d0'}`;
+        item.style.color = isError ? '#991b1b' : '#065f46';
+        item.style.fontSize = '14px';
+        item.style.maxWidth = '380px';
+        item.style.wordBreak = 'break-word';
+        box.appendChild(item);
+        setTimeout(() => item.remove(), 2600);
+      }
+
+      // ===== Lookup Empresa (botão + F8) =====
+      function openEmpresasLookup() {
+        if (typeof window.openLookup !== 'function') {
+          safeToast('Lookup não carregado.', true);
+          return;
+        }
+        window.openLookup('empresas', ({ id, label }) => {
           $('s-emp-id').value = String(id);
           $('s-emp').value = label;
         });
+      }
+      $('s-emp-lupa').addEventListener('click', openEmpresasLookup);
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'F8') {
+          e.preventDefault();
+          openEmpresasLookup();
+        }
       });
 
+      // ===== Reset padronizado =====
       function resetAll() {
         $('form-serv').reset();
         $('s-emp-id').value = '';
@@ -69,29 +114,59 @@ window.renderCadastroServicos = function () {
         $('s-valor').value = '0';
         $('s-nome').focus();
       }
-      $('s-reset').addEventListener('click', resetAll);
+      $('s-reset').addEventListener('click', (e) => {
+        e.preventDefault();
+        resetAll();
+        safeToast('Formulário limpo.');
+      });
 
+      // ===== Estado de carregamento / prevenção de duplo clique =====
+      const submitBtn = $('s-submit');
+      const submitBtnDefault = submitBtn.textContent;
+      function setBusy(isBusy) {
+        submitBtn.disabled = isBusy;
+        submitBtn.textContent = isBusy ? 'Salvando…' : submitBtnDefault;
+        submitBtn.classList.toggle('is-loading', isBusy);
+      }
+
+      // ===== Submit =====
       $('form-serv').addEventListener('submit', async (e) => {
         e.preventDefault();
+        if (submitBtn.disabled) return;
+
         try {
           const nome = ($('s-nome').value || '').trim();
-          if (!nome) return toast('Informe o nome do serviço.', true);
+          if (!nome) {
+            safeToast('Informe o nome do serviço.', true);
+            $('s-nome').focus();
+            return;
+          }
+
+          // Normalização do valor (garante número válido)
+          let valor = Number($('s-valor').value || '0');
+          if (!Number.isFinite(valor) || valor < 0) valor = 0;
+
+          setBusy(true);
 
           const payload = {
             nome,
-            valorvenda: Number($('s-valor').value || '0') || 0,
+            valorvenda: valor,
             chaveemp: Number($('s-emp-id').value || '') || null,
             obs: ($('s-obs').value || '').trim() || null,
             categoria: Number($('s-cat').value || '1') || 1,
-            validade: $('s-valid').value || null
-            // prazoentrega removido do cadastro (será definido na saída)
+            validade: ($('s-valid').value || '') ? $('s-valid').value : null
+            // prazoentrega permanece fora deste cadastro
           };
 
           await ipcRenderer.invoke('servicos:criar', payload);
-          toast('Serviço salvo!');
+
+          safeToast('Serviço salvo!');
           resetAll();
         } catch (err) {
-          toast('Erro ao salvar: ' + err.message, true);
+          const msg = (err && err.message) ? err.message : String(err);
+          safeToast('Erro ao salvar: ' + msg, true);
+        } finally {
+          setBusy(false);
         }
       });
 
