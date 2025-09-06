@@ -1,172 +1,171 @@
-const { ipcMain, dialog, BrowserWindow } = require('electron');
-const fs = require('fs');
-const path = require('path');
-const db = require('../../database'); // Importando sua conexão do database/index.js
+// src/main/ipc/relatorios.js
+const { ipcMain } = require('electron');
+const { Pool } = require('pg');
+require('dotenv').config();
 
-/**
- * Gera o conteúdo HTML completo para o relatório de vendas.
- * @param {Array} dadosVendas - Os resultados da consulta ao banco de dados.
- * @param {string} dataInicial - A data inicial do filtro.
- * @param {string} dataFinal - A data final do filtro.
- * @returns {string} - O HTML completo como uma string.
- */
-function gerarHtmlDoRelatorio(dadosVendas, dataInicial, dataFinal) {
-  const dataGeracao = new Date().toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+function buildPoolConfig() {
+  if (process.env.DATABASE_URL) return { connectionString: process.env.DATABASE_URL };
+  return {
+    host: process.env.PGHOST || '127.0.0.1',
+    port: process.env.PGPORT ? Number(process.env.PGPORT) : 5432,
+    database: process.env.PGDATABASE || 'estamparia',
+    user: process.env.PGUSER || 'postgres',
+    password: process.env.PGPASSWORD || '',
+  };
+}
+const pool = new Pool(buildPoolConfig());
 
-  // Converte as datas para o formato brasileiro para exibição
-  const formatarData = (data) => new Date(data + 'T00:00:00').toLocaleDateString('pt-BR');
-
-  // Gera uma linha de tabela (<tr>) para cada venda
-  const linhasTabela = dadosVendas
-    .map(
-      (venda) => `
-    <tr>
-      <td>${venda.codigo_venda}</td>
-      <td>${venda.data_venda}</td>
-      <td>${venda.nome_cliente}</td>
-      <td class="valor">R$ ${venda.valor_total}</td>
-    </tr>
-  `
-    )
-    .join('');
-
-  const totalGeral = dadosVendas
-    .reduce((acc, venda) => acc + parseFloat(venda.valor_total), 0)
-    .toFixed(2)
-    .replace('.', ',');
-
-  return `
-    <!DOCTYPE html>
-    <html lang="pt-BR">
-      <head>
-        <meta charset="UTF-8" />
-        <title>Relatório de Vendas</title>
-        <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 20px; color: #333; }
-          .header { text-align: center; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
-          .header h1 { margin: 0; color: #0056b3; }
-          .header p { margin: 5px 0 0; }
-          .content { margin-top: 20px; }
-          table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-          th { background-color: #f2f2f2; font-weight: bold; }
-          .total-row { font-weight: bold; background-color: #f2f2f2; }
-          .valor { text-align: right; }
-          .footer { text-align: center; font-size: 0.8em; color: #777; border-top: 1px solid #ccc; padding-top: 10px; margin-top: 20px; position: fixed; bottom: 10px; width: 95%; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>BT Estamparia ERP - Relatório de Vendas</h1>
-          <p>Período de ${formatarData(dataInicial)} a ${formatarData(dataFinal)}</p>
-        </div>
-        <div class="content">
-          <table>
-            <thead>
-              <tr>
-                <th>Cód. Venda</th>
-                <th>Data</th>
-                <th>Cliente</th>
-                <th class="valor">Valor Total (R$)</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${linhasTabela}
-            </tbody>
-            <tfoot>
-              <tr class="total-row">
-                <td colspan="3" class="valor">TOTAL GERAL</td>
-                <td class="valor">R$ ${totalGeral}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-        <div class="footer">
-          Relatório gerado em ${dataGeracao}
-        </div>
-      </body>
-    </html>
-  `;
+// util para WHERE condicional
+function whereAnd(condList) {
+  const list = condList.filter(Boolean);
+  return list.length ? ' WHERE ' + list.join(' AND ') : '';
 }
 
-// Handler principal que cuida de todo o processo
-ipcMain.handle('relatorio:gerar-pdf-vendas', async (event, { dataInicial, dataFinal }) => {
+/**
+ * REL 1 — Faturamento diário (somatório de SAÍDAS por dia).
+ * params: { de:'YYYY-MM-DD', ate:'YYYY-MM-DD', chaveclifor?:number|null }
+ */
+ipcMain.handle('rel:fatdiario', async (_e, p = {}) => {
+  const vals = [];
+  const conds = ['s.ativo = 2'];
+
+  if (p.de) { vals.push(p.de); conds.push(`s.datahoraalt::date >= $${vals.length}`); }
+  if (p.ate){ vals.push(p.ate); conds.push(`s.datahoraalt::date <= $${vals.length}`); }
+  if (p.chaveclifor){ vals.push(p.chaveclifor); conds.push(`s.chaveclifor = $${vals.length}`); }
+
+  const sql = `
+    SELECT s.datahoraalt::date AS dia, SUM(s.total) AS valor
+      FROM saidas s
+      ${whereAnd(conds)}
+     GROUP BY 1
+     ORDER BY 1
+  `;
+  const { rows } = await pool.query(sql, vals);
+  return rows; // [{dia, valor}]
+});
+
+/**
+ * REL 2 — Faturamento por cliente (somatório de SAÍDAS por cliente)
+ * params: { de, ate }
+ */
+ipcMain.handle('rel:fatporcliente', async (_e, p = {}) => {
+  const vals = [];
+  const conds = ['s.ativo = 2'];
+
+  if (p.de) { vals.push(p.de); conds.push(`s.datahoraalt::date >= $${vals.length}`); }
+  if (p.ate){ vals.push(p.ate); conds.push(`s.datahoraalt::date <= $${vals.length}`); }
+
+  const sql = `
+    SELECT c.chave AS id, COALESCE(c.nome,'(sem nome)') AS cliente, SUM(s.total) AS valor
+      FROM saidas s
+      JOIN clientes c ON c.chave = s.chaveclifor
+      ${whereAnd(conds)}
+     GROUP BY c.chave, c.nome
+     ORDER BY valor DESC, cliente ASC
+  `;
+  const { rows } = await pool.query(sql, vals);
+  return rows; // [{id, cliente, valor}]
+});
+
+/**
+ * REL 3 — Histórico comercial (itens vendidos no período)
+ * Traz PRODUTOS + (se existir) SERVIÇOS.
+ * params: { de, ate, chaveclifor?:number|null }
+ */
+ipcMain.handle('rel:historico', async (_e, p = {}) => {
+  const vals = [];
+  const conds = ['s.ativo = 2'];
+
+  if (p.de) { vals.push(p.de); conds.push(`s.datahoraalt::date >= $${vals.length}`); }
+  if (p.ate){ vals.push(p.ate); conds.push(`s.datahoraalt::date <= $${vals.length}`); }
+  if (p.chaveclifor){ vals.push(p.chaveclifor); conds.push(`s.chaveclifor = $${vals.length}`); }
+
+  const baseProd = `
+    SELECT s.datahoraalt::date AS data,
+           COALESCE(c.nome,'')   AS cliente,
+           p.nome                AS descricao,
+           ip.qtde               AS qtde,
+           ip.valorunit          AS valorunit,
+           ip.valortotal         AS valortotal
+      FROM itemsaidaprod ip
+      JOIN saidas s   ON s.chave = ip.chavesaida
+      JOIN produtos p ON p.chave = ip.chaveproduto
+      JOIN clientes c ON c.chave = s.chaveclifor
+      ${whereAnd(conds)}
+  `;
+  const baseServ = `
+    SELECT s.datahoraalt::date AS data,
+           COALESCE(c.nome,'')   AS cliente,
+           sv.nome               AS descricao,
+           isv.qtde              AS qtde,
+           isv.valorunit         AS valorunit,
+           isv.valortotal        AS valortotal
+      FROM itemsaidaserv isv
+      JOIN saidas s    ON s.chave = isv.chavesaida
+      JOIN servicos sv ON sv.chave = isv.chaveservico
+      JOIN clientes c  ON c.chave = s.chaveclifor
+      ${whereAnd(conds)}
+  `;
+
   try {
-    // 1. Buscar os dados no banco
-    const query = `
-      SELECT
-        s.codigo AS codigo_venda,
-        TO_CHAR(s.datahoracad, 'DD/MM/YYYY') AS data_venda,
-        c.nome AS nome_cliente,
-        REPLACE(s.total::text, '.', ',') AS valor_total
-      FROM
-        public.saidas AS s
-        JOIN public.clifor AS c ON s.chaveclifor = c.chave
-      WHERE
-        s.ativo = 2 -- Apenas vendas finalizadas
-        AND s.datahoracad::date BETWEEN $1::date AND $2::date
-      ORDER BY
-        s.datahoracad;
-    `;
-    const { rows: dadosVendas } = await db.query(query, [dataInicial, dataFinal]);
-
-    if (dadosVendas.length === 0) {
-      dialog.showInfoBox('Nenhum dado', 'Não foram encontradas vendas para o período selecionado.');
-      return { sucesso: false, erro: 'Nenhum dado encontrado' };
-    }
-
-    // 2. Gerar o HTML
-    const htmlContent = gerarHtmlDoRelatorio(dadosVendas, dataInicial, dataFinal);
-
-    // 3. Criar uma janela invisível para carregar o HTML
-    const win = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: false, contextIsolation: true } });
-    
-    // Carregar o HTML como uma URL de dados
-    win.loadURL('data:text/html;charset=UTF-8,' + encodeURIComponent(htmlContent));
-
-    // 4. Aguardar o carregamento e imprimir para PDF
-    const pdfPromise = new Promise((resolve, reject) => {
-      win.webContents.on('did-finish-load', async () => {
-        try {
-          const pdfData = await win.webContents.printToPDF({
-            margins: { top: 20, bottom: 20, left: 20, right: 20 },
-            printBackground: true,
-          });
-          win.close(); // Fechar a janela invisível
-          resolve(pdfData);
-        } catch (error) {
-          win.close();
-          reject(error);
-        }
-      });
-    });
-
-    const pdfBuffer = await pdfPromise;
-
-    // 5. Perguntar ao usuário onde salvar o arquivo
-    const { canceled, filePath } = await dialog.showSaveDialog({
-      title: 'Salvar Relatório de Vendas',
-      defaultPath: path.join(require('os').homedir(), `Relatorio_Vendas_${Date.now()}.pdf`),
-      filters: [{ name: 'Arquivos PDF', extensions: ['pdf'] }],
-    });
-
-    if (canceled) {
-      return { sucesso: false, cancelado: true };
-    }
-
-    // 6. Salvar o arquivo PDF
-    fs.writeFileSync(filePath, pdfBuffer);
-
-    return { sucesso: true, caminhoArquivo: filePath };
-  } catch (error) {
-    console.error('Erro ao gerar PDF:', error);
-    dialog.showErrorBox('Erro', `Não foi possível gerar o relatório: ${error.message}`);
-    return { sucesso: false, erro: error.message };
+    const { rows } = await pool.query(`${baseProd} UNION ALL ${baseServ} ORDER BY 1,2,3`, []);
+    return rows;
+  } catch {
+    const { rows } = await pool.query(`${baseProd} ORDER BY 1,2,3`, []);
+    return rows;
   }
 });
+
+/**
+ * >>> NOVOS: Listagem de NOTAS (cabeçalhos) <<<
+ * Usados para exibir os registros de Entrada/Saída nas telas de relatório.
+ */
+
+// Notas de SAÍDA (fechadas)
+ipcMain.handle('rel:notas_saida', async (_e, p = {}) => {
+  const vals = [];
+  const conds = ['s.ativo = 2']; // somente finalizadas
+
+  if (p.de) { vals.push(p.de); conds.push(`s.datahoraalt::date >= $${vals.length}`); }
+  if (p.ate){ vals.push(p.ate); conds.push(`s.datahoraalt::date <= $${vals.length}`); }
+  if (p.chaveclifor){ vals.push(p.chaveclifor); conds.push(`s.chaveclifor = $${vals.length}`); }
+
+  const sql = `
+    SELECT s.chave,
+           s.datahoraalt,
+           COALESCE(c.nome,'') AS cliente,
+           COALESCE(s.obs,'')  AS obs,
+           s.total
+      FROM saidas s
+      JOIN clientes c ON c.chave = s.chaveclifor
+      ${whereAnd(conds)}
+     ORDER BY s.datahoraalt ASC, s.chave ASC
+  `;
+  const { rows } = await pool.query(sql, vals);
+  return rows; // [{chave, datahoraalt, cliente, obs, total}]
+});
+
+// Notas de ENTRADA (fechadas)
+ipcMain.handle('rel:notas_entrada', async (_e, p = {}) => {
+  const vals = [];
+  const conds = ['e.ativo = 2']; // somente finalizadas
+
+  if (p.de) { vals.push(p.de); conds.push(`e.datahoraalt::date >= $${vals.length}`); }
+  if (p.ate){ vals.push(p.ate); conds.push(`e.datahoraalt::date <= $${vals.length}`); }
+  if (p.chaveclifor){ vals.push(p.chaveclifor); conds.push(`e.chaveclifor = $${vals.length}`); }
+
+  const sql = `
+    SELECT e.chave,
+           e.datahoraalt,
+           COALESCE(c.nome,'') AS fornecedor,
+           COALESCE(e.obs,'')  AS obs,
+           e.total
+      FROM entradas e
+      JOIN clientes c ON c.chave = e.chaveclifor
+      ${whereAnd(conds)}
+     ORDER BY e.datahoraalt ASC, e.chave ASC
+  `;
+  const { rows } = await pool.query(sql, vals);
+  return rows; // [{chave, datahoraalt, fornecedor, obs, total}]
+});
+

@@ -89,10 +89,26 @@
             </a>
           </div>
 
-          <a class="nav-item" href="#/relatorios">
+          <!-- ===== Relatórios (submenu em cascata) ===== -->
+          <button class="nav-item" data-toggle="submenu-relatorios">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M3 3h18v4H3zM7 7v14M12 7v14M17 7v14"/></svg>
-            <span class="label">Relatórios</span>
-          </a>
+            <span class="label">Relatórios</span><span class="caret">▾</span>
+          </button>
+          <div id="submenu-relatorios" class="submenu">
+            <a href="#/relatorios/faturamento-diario" class="submenu-link">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M4 19V6m6 13V10m6 9V4m4 15H2"/></svg>
+              Faturamento Diário
+            </a>
+            <a href="#/relatorios/por-cliente" class="submenu-link">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M16 11a4 4 0 10-8 0 4 4 0 008 0zM3 21a8 8 0 0118 0"/></svg>
+              Faturamento por Cliente
+            </a>
+            <a href="#/relatorios/historico-comercial" class="submenu-link">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+              Histórico Comercial
+            </a>
+          </div>
+
           <a class="nav-item" href="#/">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M3 12l9-9 9 9v8a2 2 0 01-2 2h-4v-6H9v6H5a2 2 0 01-2-2z"/></svg>
             <span class="label">Dashboard</span>
@@ -163,6 +179,8 @@
   <script src="./views/relatorios.js"></script>
   <script src="./views/configuracoes.js"></script>
   <script src="./views/perfil.js"></script>
+
+  <script src="./views/relatorios-prints.js"></script>
 
   <!-- Router + app -->
   <script src="./router.js"></script>

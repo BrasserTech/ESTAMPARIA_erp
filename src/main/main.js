@@ -5,6 +5,7 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const db = require('../database'); // ../database/index.js
+require('./ipc/relatorios.js');
 
 let mainWindow;
 
