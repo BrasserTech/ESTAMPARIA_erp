@@ -1,6 +1,5 @@
 // src/renderer/views/configuracoes.js
 window.renderConfiguracoes = function () {
-  // Catálogo das telas (chaves devem bater com data-menu do index.html/sidebar)
   const MENU_DEFINITION = [
     {
       group: 'Cadastrar (principais)',
@@ -54,7 +53,6 @@ window.renderConfiguracoes = function () {
 
   const html = `
   <div class="grid" style="display:grid;gap:14px;">
-    <!-- Banco de Dados -->
     <div class="card">
       <h3>Banco de Dados</h3>
       <div class="actions" style="gap:8px;margin:8px 0 6px">
@@ -72,17 +70,14 @@ window.renderConfiguracoes = function () {
         </div>
       </div>
       <p style="margin-top:8px;color:#667085;font-size:12px">
-        <strong>“Criar/Atualizar Tabelas”</strong> executa <code>src/database/schema.sql</code> de forma idempotente,
-        ajustando o esquema (clientes, fornecedores, produtos, serviços, entradas/saídas etc.) sem perder dados existentes.
+        <strong>“Criar/Atualizar Tabelas”</strong> executa <code>src/database/schema.sql</code> de forma idempotente.
       </p>
     </div>
 
-    <!-- Exibição de telas -->
     <div class="card">
       <h3>Exibição de telas</h3>
       <p style="color:#667085;margin:6px 0 12px">
-        Marque/desmarque as telas que deseja exibir no menu lateral. Itens de grupo aparecem em <strong>negrito</strong>
-        e subitens em estilo normal.
+        Marque/desmarque as telas que deseja exibir no menu lateral.
       </p>
 
       <div id="prefs-groups"></div>
@@ -105,7 +100,6 @@ window.renderConfiguracoes = function () {
     afterRender() {
       const { ipcRenderer } = require('electron');
 
-      // ---------- helpers ----------
       function $(id) { return document.getElementById(id); }
       function toast(msg, err = false) {
         if (window.UIPrefs?.toast) return window.UIPrefs.toast(msg, err);
@@ -116,7 +110,6 @@ window.renderConfiguracoes = function () {
         setTimeout(() => t.remove(), 2200);
       }
 
-      // Renderiza os grupos/checkboxes
       function renderGroups(prefs) {
         const wrap = $('prefs-groups');
         const map = prefs || {};
@@ -124,7 +117,7 @@ window.renderConfiguracoes = function () {
         wrap.innerHTML = MENU_DEFINITION.map(group => {
           const items = group.items.map(it => {
             const checked = Object.prototype.hasOwnProperty.call(map, it.key)
-              ? !!map[it.key] : true; // padrão: visível
+              ? !!map[it.key] : true;
             return `
               <label style="display:flex;align-items:center;gap:10px;margin:6px 0;">
                 <input type="checkbox" class="menu-box" data-key="${it.key}" ${checked ? 'checked' : ''}/>
@@ -143,7 +136,6 @@ window.renderConfiguracoes = function () {
         }).join('');
       }
 
-      // Lê todos os checkboxes => objeto de prefs
       function collectPrefs() {
         const boxes = document.querySelectorAll('.menu-box');
         const out = {};
@@ -151,12 +143,10 @@ window.renderConfiguracoes = function () {
         return out;
       }
 
-      // Aplica na UI imediatamente
       function applyNow(prefs) {
         if (window.UIPrefs) window.UIPrefs.applyToMenu(prefs);
       }
 
-      // ---------- DB (compacto) ----------
       async function loadInfo() {
         try {
           const info = await ipcRenderer.invoke('db:info');
@@ -178,53 +168,42 @@ window.renderConfiguracoes = function () {
 
       $('btn-init').addEventListener('click', async () => {
         $('db-out').textContent = 'Aplicando schema...';
-        try {
-          await ipcRenderer.invoke('db:init');
-          $('db-out').textContent = 'Esquema aplicado com sucesso.';
-        } catch (e) {
-          $('db-out').textContent = 'Erro ao aplicar schema: ' + e.message;
-        }
+        try { await ipcRenderer.invoke('db:init'); $('db-out').textContent = 'Esquema aplicado com sucesso.'; }
+        catch (e) { $('db-out').textContent = 'Erro ao aplicar schema: ' + e.message; }
       });
 
-      // ---------- Exibição de telas ----------
       (async () => {
-        const prefs = (window.UIPrefs)
-          ? await window.UIPrefs.read('ui')
-          : {};
+        const prefs = (window.UIPrefs) ? await window.UIPrefs.read('ui') : {};
         renderGroups(prefs);
       })();
 
       $('btn-all').addEventListener('click', () => {
         document.querySelectorAll('.menu-box').forEach(b => b.checked = true);
       });
-
       $('btn-none').addEventListener('click', () => {
         document.querySelectorAll('.menu-box').forEach(b => b.checked = false);
       });
 
       $('btn-reset').addEventListener('click', async () => {
-        // padrão: tudo true
         document.querySelectorAll('.menu-box').forEach(b => b.checked = true);
         const obj = collectPrefs();
-        if (window.UIPrefs) {
-          await window.UIPrefs.write(obj, 'ui');
-          applyNow(obj);
-        }
+        applyNow(obj);                 // aplica na hora
+        if (window.UIPrefs) await window.UIPrefs.write(obj, 'ui');
         toast('Preferências restauradas para o padrão (tudo visível).');
       });
 
       $('btn-save-prefs').addEventListener('click', async () => {
         const obj = collectPrefs();
-        // grava INI via IPC e aplica
-        if (window.UIPrefs) {
-          const ok = await window.UIPrefs.write(obj, 'ui');
-          if (ok) {
-            applyNow(obj);
-            toast('Preferências salvas.');
-          } else {
-            toast('Falha ao salvar preferências.', true);
-          }
-        }
+
+        // aplica imediatamente (itens somem já no clique)
+        applyNow(obj);
+
+        // persiste (IPC + localStorage)
+        let persisted = false;
+        if (window.UIPrefs) persisted = await window.UIPrefs.write(obj, 'ui');
+
+        toast(persisted ? 'Preferências salvas.' :
+          'Aplicadas na interface. Persistência indisponível (fallback local).');
       });
 
       loadInfo();

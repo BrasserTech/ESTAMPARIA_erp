@@ -34,13 +34,13 @@
             <span class="caret">▾</span>
           </div>
           <div id="sub-cad" class="submenu">
-            <a class="submenu-link" href="#/cadastro/produtos"><span class="icon">📦</span> Produtos</a>
-            <a class="submenu-link" href="#/cadastro/clientes"><span class="icon">👤</span> Clientes</a>
-            <a class="submenu-link" href="#/cadastro/servicos"><span class="icon">🛠️</span> Serviços</a>
-            <a class="submenu-link" href="#/cadastro/entradas/produtos"><span class="icon">📥</span> Entrada (Produtos)</a>
-            <a class="submenu-link" href="#/cadastro/entradas/servicos"><span class="icon">📥</span> Entrada (Serviços)</a>
-            <a class="submenu-link" href="#/cadastro/saidas/produtos"><span class="icon">📤</span> Saída (Produtos)</a>
-            <a class="submenu-link" href="#/cadastro/saidas/servicos"><span class="icon">📤</span> Saída (Serviços)</a>
+            <a class="submenu-link" data-menu="cad:produtos"   href="#/cadastro/produtos"><span class="icon">📦</span> Produtos</a>
+            <a class="submenu-link" data-menu="cad:clientes"   href="#/cadastro/clientes"><span class="icon">👤</span> Clientes</a>
+            <a class="submenu-link" data-menu="cad:servicos"   href="#/cadastro/servicos"><span class="icon">🛠️</span> Serviços</a>
+            <a class="submenu-link" data-menu="cad:ent:prod"   href="#/cadastro/entradas/produtos"><span class="icon">📥</span> Entrada (Produtos)</a>
+            <a class="submenu-link" data-menu="cad:ent:serv"   href="#/cadastro/entradas/servicos"><span class="icon">📥</span> Entrada (Serviços)</a>
+            <a class="submenu-link" data-menu="cad:sai:prod"   href="#/cadastro/saidas/produtos"><span class="icon">📤</span> Saída (Produtos)</a>
+            <a class="submenu-link" data-menu="cad:sai:serv"   href="#/cadastro/saidas/servicos"><span class="icon">📤</span> Saída (Serviços)</a>
           </div>
 
           <!-- Consultar -->
@@ -50,11 +50,11 @@
             <span class="caret">▾</span>
           </div>
           <div id="sub-cons" class="submenu">
-            <a class="submenu-link" href="#/consulta/produtos"><span class="icon">📦</span> Produtos</a>
-            <a class="submenu-link" href="#/consulta/clientes"><span class="icon">👤</span> Clientes</a>
-            <a class="submenu-link" href="#/consulta/servicos"><span class="icon">🛠️</span> Serviços</a>
-            <a class="submenu-link" href="#/consulta/entradas"><span class="icon">📥</span> Entradas</a>
-            <a class="submenu-link" href="#/consulta/saidas"><span class="icon">📤</span> Saídas</a>
+            <a class="submenu-link" data-menu="con:produtos"   href="#/consulta/produtos"><span class="icon">📦</span> Produtos</a>
+            <a class="submenu-link" data-menu="con:clientes"   href="#/consulta/clientes"><span class="icon">👤</span> Clientes</a>
+            <a class="submenu-link" data-menu="con:servicos"   href="#/consulta/servicos"><span class="icon">🛠️</span> Serviços</a>
+            <a class="submenu-link" data-menu="con:entradas"   href="#/consulta/entradas"><span class="icon">📥</span> Entradas</a>
+            <a class="submenu-link" data-menu="con:saidas"     href="#/consulta/saidas"><span class="icon">📤</span> Saídas</a>
           </div>
 
           <!-- Relatórios -->
@@ -64,23 +64,23 @@
             <span class="caret">▾</span>
           </div>
           <div id="sub-rep" class="submenu">
-            <a class="submenu-link" href="#/relatorios/faturamento"><span class="icon">💵</span> Faturamento</a>
-            <a class="submenu-link" href="#/relatorios/fat-por-cliente"><span class="icon">👥</span> Faturamento por Cliente</a>
-            <a class="submenu-link" href="#/relatorios/historico-comercial"><span class="icon">🗂️</span> Histórico Comercial</a>
+            <a class="submenu-link" data-menu="rel:faturamento"       href="#/relatorios/faturamento"><span class="icon">💵</span> Faturamento</a>
+            <a class="submenu-link" data-menu="rel:fat-por-cliente"   href="#/relatorios/fat-por-cliente"><span class="icon">👥</span> Faturamento por Cliente</a>
+            <a class="submenu-link" data-menu="rel:historico"         href="#/relatorios/historico-comercial"><span class="icon">🗂️</span> Histórico Comercial</a>
           </div>
 
-          <a class="nav-item" href="#/">
+          <a class="nav-item" data-menu="dash" href="#/">
             <span class="icon">🏠</span>
             <span class="label">Dashboard</span>
           </a>
         </div>
 
         <div class="nav-bottom">
-          <a class="nav-item" href="#/configuracoes">
+          <a class="nav-item" data-menu="cfg" href="#/configuracoes">
             <span class="icon">⚙️</span>
             <span class="label">Configurações</span>
           </a>
-          <a class="nav-item" href="#/perfil">
+          <a class="nav-item" data-menu="perfil" href="#/perfil">
             <span class="icon">👤</span>
             <span class="label">Perfil</span>
           </a>
@@ -120,6 +120,9 @@
   <!-- Shared / helpers -->
   <script src="shared/types.js"></script>
   <script src="charts.js"></script>
+
+  <!-- UI Prefs (precisa estar antes das views e do router) -->
+  <script src="ui-prefs.js"></script>
 
   <!-- Views: cadastro -->
   <script src="views/cadastro-clientes.js"></script>
@@ -182,14 +185,8 @@
 
       const isMobile = () => window.innerWidth <= 980;
 
-      function openOverlay(){
-        app.classList.add('mobile-open');
-        fab.classList.add('hide');
-      }
-      function closeOverlay(){
-        app.classList.remove('mobile-open');
-        fab.classList.remove('hide');
-      }
+      function openOverlay(){ app.classList.add('mobile-open'); fab.classList.add('hide'); }
+      function closeOverlay(){ app.classList.remove('mobile-open'); fab.classList.remove('hide'); }
 
       // Hambúrguer: desktop = colapsa; mobile = overlay
       toggleBtn?.addEventListener('click', (e) => {
