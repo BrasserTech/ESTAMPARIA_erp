@@ -1,185 +1,230 @@
 <!doctype html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
   <title>ERP Estamparia</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="styles.css" />
 </head>
+
 <body>
-  <div class="app" id="app">
-    <aside class="sidebar" id="sidebar">
+  <div id="app" class="app">
+    <!-- ========= SIDEBAR ========= -->
+    <aside class="sidebar">
       <div class="brand">
         <div class="logo">BT</div>
         <div class="brand-name">Estamparia ERP</div>
-        <button class="toggle-btn" id="btn-sidebar" title="Mostrar/ocultar menu">
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+
+        <!-- Toggle “hambúrguer” (desktop: colapsa; mobile: abre overlay) -->
+        <button id="sidebar-toggle" class="toggle-btn" title="Menu">
+          <span class="icon">≡</span>
         </button>
+
+        <!-- Botão X (visível só quando overlay mobile estiver aberto) -->
+        <button id="sidebar-close" class="mobile-close" aria-label="Fechar menu">×</button>
       </div>
 
       <nav class="nav">
         <div class="nav-top">
           <!-- Cadastrar -->
-          <button class="nav-item" data-toggle="submenu-cadastrar">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M12 5v14M5 12h14"/></svg>
-            <span class="label">Cadastrar</span><span class="caret">▾</span>
-          </button>
-          <div id="submenu-cadastrar" class="submenu">
-            <a href="#/cadastro/produtos" class="submenu-link">
-              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M3 7h18M3 12h18M3 17h18"/></svg>
-              Produtos
-            </a>
-            <a href="#/cadastro/clientes" class="submenu-link">
-              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M16 11c1.66 0 3-1.57 3-3.5S17.66 4 16 4 13 5.57 13 7.5 14.34 11 16 11zM8 11c1.66 0 3-1.57 3-3.5S9.66 4 8 4 5 5.57 5 7.5 6.34 11 8 11zm0 2c-2.33 0-7 1.17-7 3.5V20h14v-3.5C15 14.17 10.33 13 8 13zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.91 1.97 3.45V20h6v-3.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
-              Clientes
-            </a>
-            <a href="#/cadastro/servicos" class="submenu-link">
-              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M9.5 6.5l5 5-5 5M4 12h10"/></svg>
-              Serviços
-            </a>
-
-            <!-- Entradas (separadas) -->
-            <a href="#/cadastro/entradas/produtos" class="submenu-link">
-              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M12 3v18M5 12h14"/></svg>
-              Entrada (Produtos)
-            </a>
-            <a href="#/cadastro/entradas/servicos" class="submenu-link">
-              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M12 3v18M5 12h14"/></svg>
-              Entrada (Serviços)
-            </a>
-
-            <!-- Saídas (separadas) -->
-            <a href="#/cadastro/saidas/produtos" class="submenu-link">
-              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M12 21V3M5 12h14"/></svg>
-              Saída (Produtos)
-            </a>
-            <a href="#/cadastro/saidas/servicos" class="submenu-link">
-              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M12 21V3M5 12h14"/></svg>
-              Saída (Serviços)
-            </a>
+          <div class="nav-item" data-submenu="sub-cad">
+            <span class="icon">＋</span>
+            <span class="label">Cadastrar</span>
+            <span class="caret">▾</span>
+          </div>
+          <div id="sub-cad" class="submenu">
+            <a class="submenu-link" href="#/cadastro/produtos"><span class="icon">📦</span> Produtos</a>
+            <a class="submenu-link" href="#/cadastro/clientes"><span class="icon">👤</span> Clientes</a>
+            <a class="submenu-link" href="#/cadastro/servicos"><span class="icon">🛠️</span> Serviços</a>
+            <a class="submenu-link" href="#/cadastro/entradas/produtos"><span class="icon">📥</span> Entrada (Produtos)</a>
+            <a class="submenu-link" href="#/cadastro/entradas/servicos"><span class="icon">📥</span> Entrada (Serviços)</a>
+            <a class="submenu-link" href="#/cadastro/saidas/produtos"><span class="icon">📤</span> Saída (Produtos)</a>
+            <a class="submenu-link" href="#/cadastro/saidas/servicos"><span class="icon">📤</span> Saída (Serviços)</a>
           </div>
 
           <!-- Consultar -->
-          <button class="nav-item" data-toggle="submenu-consultar">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M10 6a4 4 0 104 4H10zM21 21l-4.35-4.35"/></svg>
-            <span class="label">Consultar</span><span class="caret">▾</span>
-          </button>
-          <div id="submenu-consultar" class="submenu">
-            <a href="#/consulta/produtos" class="submenu-link">
-              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M3 7h18M3 12h18M3 17h18"/></svg>
-              Produtos
-            </a>
-            <a href="#/consulta/clientes" class="submenu-link">
-              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M16 11c1.66 0 3-1.57 3-3.5S17.66 4 16 4 13 5.57 13 7.5 14.34 11 16 11zM8 11c1.66 0 3-1.57 3-3.5S9.66 4 8 4 5 5.57 5 7.5 6.34 11 8 11zm0 2c-2.33 0-7 1.17-7 3.5V20h14v-3.5C15 14.17 10.33 13 8 13zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.91 1.97 3.45V20h6v-3.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
-              Clientes
-            </a>
-            <a href="#/consulta/servicos" class="submenu-link">
-              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M9.5 6.5l5 5-5 5M4 12h10"/></svg>
-              Serviços
-            </a>
-            <a href="#/consulta/entradas" class="submenu-link">
-              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M8 6h13M3 12h18M3 18h18"/></svg>
-              Entradas
-            </a>
-            <a href="#/consulta/saidas" class="submenu-link">
-              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M8 6h13M3 12h18M3 18h18"/></svg>
-              Saídas
-            </a>
+          <div class="nav-item" data-submenu="sub-cons">
+            <span class="icon">☎</span>
+            <span class="label">Consultar</span>
+            <span class="caret">▾</span>
+          </div>
+          <div id="sub-cons" class="submenu">
+            <a class="submenu-link" href="#/consulta/produtos"><span class="icon">📦</span> Produtos</a>
+            <a class="submenu-link" href="#/consulta/clientes"><span class="icon">👤</span> Clientes</a>
+            <a class="submenu-link" href="#/consulta/servicos"><span class="icon">🛠️</span> Serviços</a>
+            <a class="submenu-link" href="#/consulta/entradas"><span class="icon">📥</span> Entradas</a>
+            <a class="submenu-link" href="#/consulta/saidas"><span class="icon">📤</span> Saídas</a>
           </div>
 
-          <!-- ===== Relatórios (submenu em cascata) ===== -->
-          <button class="nav-item" data-toggle="submenu-relatorios">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M3 3h18v4H3zM7 7v14M12 7v14M17 7v14"/></svg>
-            <span class="label">Relatórios</span><span class="caret">▾</span>
-          </button>
-          <div id="submenu-relatorios" class="submenu">
-            <a href="#/relatorios/faturamento" class="submenu-link">
-              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M4 19V6m6 13V10m6 9V4m4 15H2"/></svg>
-              Faturamento
-            </a>
-            <a href="#/relatorios/fat-por-cliente" class="submenu-link">
-              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M16 11a4 4 0 10-8 0 4 4 0 008 0zM3 21a8 8 0 0118 0"/></svg>
-              Faturamento por Cliente
-            </a>
-            <a href="#/relatorios/historico-comercial" class="submenu-link">
-              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
-              Histórico Comercial
-            </a>
+          <!-- Relatórios -->
+          <div class="nav-item" data-submenu="sub-rep">
+            <span class="icon">📊</span>
+            <span class="label">Relatórios</span>
+            <span class="caret">▾</span>
+          </div>
+          <div id="sub-rep" class="submenu">
+            <a class="submenu-link" href="#/relatorios/faturamento"><span class="icon">💵</span> Faturamento</a>
+            <a class="submenu-link" href="#/relatorios/fat-por-cliente"><span class="icon">👥</span> Faturamento por Cliente</a>
+            <a class="submenu-link" href="#/relatorios/historico-comercial"><span class="icon">🗂️</span> Histórico Comercial</a>
           </div>
 
           <a class="nav-item" href="#/">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M3 12l9-9 9 9v8a2 2 0 01-2 2h-4v-6H9v6H5a2 2 0 01-2-2z"/></svg>
+            <span class="icon">🏠</span>
             <span class="label">Dashboard</span>
           </a>
         </div>
 
         <div class="nav-bottom">
           <a class="nav-item" href="#/configuracoes">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M12 15.5a3.5 3.5 0 100-7 3.5 3.5 0 000 7zM19.4 15a7.97 7.97 0 00.1-6l2-1-2-3-2 1a8.03 8.03 0 00-5-2l-1-2H9l-1 2a8.03 8.03 0 00-5 2l-2-1-2 3 2 1a7.97 7.97 0 000 6l-2 1 2 3 2-1a8.03 8.03 0 005 2l1 2h4l1-2a8.03 8.03 0 005-2l2 1 2-3-2-1z"/></svg>
+            <span class="icon">⚙️</span>
             <span class="label">Configurações</span>
           </a>
           <a class="nav-item" href="#/perfil">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-width="2" d="M12 12a5 5 0 100-10 5 5 0 000 10zm-9 9v-1a7 7 0 0114 0v1z"/></svg>
+            <span class="icon">👤</span>
             <span class="label">Perfil</span>
           </a>
         </div>
       </nav>
     </aside>
 
+    <!-- Backdrop (fecha overlay no mobile) -->
+    <div id="sidebar-backdrop" class="backdrop" aria-hidden="true"></div>
+
+    <!-- FAB (botão flutuante – abre overlay no mobile) -->
+    <button id="menu-fab" class="menu-fab" title="Abrir menu">☰</button>
+
+    <!-- ========= CONTEÚDO ========= -->
     <main class="content">
       <header class="topbar">
         <h1 id="page-title">Dashboard</h1>
         <div class="userbar">
-          <div class="avatar" id="user-avatar">O</div>
-          <div class="name" id="user-name">Operador</div>
-          <a href="#/perfil" id="link-perfil">Perfil</a>
+          <div class="avatar">O</div>
+          <div class="name">Operador</div>
+          <a href="#/perfil">Perfil</a>
         </div>
       </header>
 
-      <section id="view-root" class="view-root"></section>
+      <section id="view-root" class="view-root">
+        <!-- Conteúdo injetado pelas views -->
+      </section>
 
-      <div class="footerbar">
-        <div id="footer-date">--/--/----</div>
-        <div id="footer-weekday">---</div>
-        <div id="footer-version">v0.0.0</div>
-      </div>
+      <footer class="footerbar">
+        <span id="footer-date"></span>
+        <span>v37.4.0</span>
+      </footer>
     </main>
   </div>
 
-  <!-- Gráficos locais (Canvas) -->
-  <script src="./charts.js"></script>
+  <!-- ========= SCRIPTS ========= -->
+  <!-- Shared / helpers -->
+  <script src="shared/types.js"></script>
+  <script src="charts.js"></script>
 
-  <!-- Views -->
-  <script src="./views/dashboard.js"></script>
-  <script src="./views/cadastro-produtos.js"></script>
-  <script src="./views/cadastro-clientes.js"></script>
-  <script src="./views/cadastro-servicos.js"></script>
+  <!-- Views: cadastro -->
+  <script src="views/cadastro-clientes.js"></script>
+  <script src="views/cadastro-produtos.js"></script>
+  <script src="views/cadastro-servicos.js"></script>
+  <script src="views/cadastro-entrada-prod.js"></script>
+  <script src="views/cadastro-entrada-serv.js"></script>
+  <script src="views/cadastro-saida-prod.js"></script>
+  <script src="views/cadastro-saida-serv.js"></script>
 
-  <!-- MODAL DE PESQUISA (F8 + lupa) -->
-  <script src="./views/lookup-modal.js"></script>
+  <!-- Views: consultas -->
+  <script src="views/consulta-clientes.js"></script>
+  <script src="views/consulta-produtos.js"></script>
+  <script src="views/consulta-servicos.js"></script>
+  <script src="views/consultar-entradas.js"></script>
+  <script src="views/consultar-saidas.js"></script>
 
-  <!-- Entradas/Saídas (separadas) -->
-  <script src="./views/cadastro-entrada-prod.js"></script>
-  <script src="./views/cadastro-entrada-serv.js"></script>
-  <script src="./views/cadastro-saida-prod.js"></script>
-  <script src="./views/cadastro-saida-serv.js"></script>
+  <!-- Views: relatórios -->
+  <script src="views/rel-faturamento.js"></script>
+  <script src="views/rel-fat-por-cliente.js"></script>
+  <script src="views/rel-historico-comercial.js"></script>
 
-  <!-- Consultas etc -->
-  <script src="./views/consulta-produtos.js"></script>
-  <script src="./views/consulta-clientes.js"></script>
-  <script src="./views/consulta-servicos.js"></script>
+  <!-- Outras views -->
+  <script src="views/configuracoes.js"></script>
+  <script src="views/perfil.js"></script>
+  <script src="views/dashboard.js"></script>
+  <script src="views/lookup-modal.js"></script>
 
-  <!-- Consultar Entradas/Saídas -->
-<script src="views/consultar-entradas.js"></script>
-<script src="views/consultar-saidas.js"></script>
+  <!-- Router -->
+  <script src="router.js"></script>
 
-  <!-- Relatórios separados -->
-  <script src="./views/rel-faturamento.js"></script>
-  <script src="./views/rel-fat-por-cliente.js"></script>
-  <script src="./views/rel-historico-comercial.js"></script>
+  <!-- Submenus (abre/fecha) + Mobile overlay control -->
+  <script>
+    // Submenus simples
+    document.addEventListener('click', (ev) => {
+      const trigger = ev.target.closest('.nav-item[data-submenu]');
+      if (!trigger) return;
+      const id = trigger.getAttribute('data-submenu');
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.toggle('open');
+    });
 
-  <!-- Router + app -->
-  <script src="./router.js"></script>
-  <script src="./App.js"></script>
+    // Rodapé com data
+    (function () {
+      const el = document.getElementById('footer-date');
+      const d = new Date();
+      const f = d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric', weekday:'long' });
+      if (el) el.textContent = f;
+    })();
+
+    // ===== Controle do overlay mobile (sem remover comportamento desktop) =====
+    (function () {
+      const app       = document.querySelector('.app');
+      const toggleBtn = document.getElementById('sidebar-toggle');
+      const closeBtn  = document.getElementById('sidebar-close');
+      const backdrop  = document.getElementById('sidebar-backdrop');
+      const fab       = document.getElementById('menu-fab');
+      const sidebar   = document.querySelector('.sidebar');
+
+      const isMobile = () => window.innerWidth <= 980;
+
+      function openOverlay(){
+        app.classList.add('mobile-open');
+        fab.classList.add('hide');
+      }
+      function closeOverlay(){
+        app.classList.remove('mobile-open');
+        fab.classList.remove('hide');
+      }
+
+      // Hambúrguer: desktop = colapsa; mobile = overlay
+      toggleBtn?.addEventListener('click', (e) => {
+        if (isMobile()) {
+          e.preventDefault();
+          app.classList.contains('mobile-open') ? closeOverlay() : openOverlay();
+        } else {
+          app.classList.toggle('collapsed');
+        }
+      });
+
+      closeBtn?.addEventListener('click', closeOverlay);
+      backdrop?.addEventListener('click', closeOverlay);
+      fab?.addEventListener('click', openOverlay);
+
+      // Fechar overlay ao clicar em qualquer link/botão do menu (mobile)
+      sidebar?.addEventListener('click', (ev) => {
+        const hit = ev.target.closest('a,button');
+        if (!hit) return;
+        if (isMobile()) closeOverlay();
+      });
+
+      // Ao redimensionar, garantir estados coerentes
+      window.addEventListener('resize', () => {
+        if (!isMobile()) {
+          app.classList.remove('mobile-open');
+          fab?.classList.add('hide');
+        } else if (!app.classList.contains('mobile-open')) {
+          fab?.classList.remove('hide');
+        }
+      });
+
+      // Estado inicial do FAB
+      if (!isMobile()) fab?.classList.add('hide');
+    })();
+  </script>
 </body>
 </html>

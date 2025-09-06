@@ -86,3 +86,99 @@
     setTimeout(()=>{ t.remove(); }, 3000);
   };
 })();
+
+// ===== Sidebar responsiva: desktop = collapse; mobile = off-canvas =====
+(function () {
+  const app = document.getElementById('app');
+  const sidebar = document.querySelector('.sidebar');
+  const toggleBtn = document.getElementById('sidebar-toggle');
+
+  if (!app || !sidebar || !toggleBtn) return;
+
+  // cria backdrop (uma vez)
+  let backdrop = document.querySelector('.backdrop');
+  if (!backdrop) {
+    backdrop = document.createElement('div');
+    backdrop.className = 'backdrop';
+    document.body.appendChild(backdrop);
+  }
+
+  const isMobile = () => window.innerWidth <= 1200;
+
+  function openMobileSidebar() {
+    app.classList.add('sidebar-open');
+  }
+  function closeMobileSidebar() {
+    app.classList.remove('sidebar-open');
+  }
+  function toggleSidebar() {
+    if (isMobile()) {
+      app.classList.toggle('sidebar-open');
+    } else {
+      app.classList.toggle('collapsed');
+    }
+  }
+
+  // clique no botão abre/fecha
+  toggleBtn.addEventListener('click', toggleSidebar);
+
+  // clique no backdrop fecha
+  backdrop.addEventListener('click', closeMobileSidebar);
+
+  // ao mudar de rota, fecha sidebar mobile
+  window.addEventListener('hashchange', closeMobileSidebar);
+
+  // se redimensionar para desktop, garante que o off-canvas esteja fechado
+  window.addEventListener('resize', () => {
+    if (!isMobile()) closeMobileSidebar();
+  });
+
+  // se clicar em qualquer link da sidebar no mobile, fecha o menu
+  sidebar.addEventListener('click', (ev) => {
+    const a = ev.target.closest('a');
+    if (a && isMobile()) closeMobileSidebar();
+  });
+
+  // fecha com ESC no mobile
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape' && isMobile()) closeMobileSidebar();
+  });
+})();
+
+// ===== FAB / Acessibilidade extra para mobile (sempre abre o menu) =====
+(function () {
+  const app = document.getElementById('app');
+  const isMobile = () => window.innerWidth <= 1200;
+
+  // cria FAB uma única vez
+  let fab = document.getElementById('menu-fab');
+  if (!fab) {
+    fab = document.createElement('button');
+    fab.id = 'menu-fab';
+    fab.className = 'menu-fab';
+    fab.setAttribute('aria-label', 'Abrir menu');
+    fab.title = 'Abrir menu (Ctrl+B)';
+    fab.textContent = '☰';
+    document.body.appendChild(fab);
+  }
+
+  fab.addEventListener('click', () => {
+    if (isMobile()) app.classList.add('sidebar-open');
+  });
+
+  // atalho de teclado: Ctrl + B abre/fecha no mobile
+  document.addEventListener('keydown', (ev) => {
+    const ctrl = ev.ctrlKey || ev.metaKey;
+    if (ctrl && (ev.key.toLowerCase() === 'b')) {
+      if (isMobile()) {
+        ev.preventDefault();
+        app.classList.toggle('sidebar-open');
+      }
+    }
+  });
+
+  // quando redimensionar para desktop, ocultamos qualquer resquício de estado
+  window.addEventListener('resize', () => {
+    if (!isMobile()) app.classList.remove('sidebar-open');
+  });
+})();
