@@ -1,0 +1,165 @@
+Passo a passo (preset “Portable”)
+1) Pré-requisitos
+
+Node.js (LTS) instalado.
+
+Projeto Electron com src/main/main.js (processo principal) e src/renderer/index.html (renderer).
+
+Ícone opcional: assets/icon.ico (Windows).
+
+2) Instalar dependências de build
+
+No diretório do projeto:
+
+npm i -D electron electron-builder
+npm i dotenv pg
+
+
+Ajuste as libs de runtime conforme seu app. Tudo que o main usa deve estar em dependencies (não em devDependencies).
+
+3) Padronizar o main e paths
+
+No main.js, carregue a UI por caminho relativo ao próprio arquivo (funciona empacotado):
+
+// src/main/main.js
+const { app, BrowserWindow } = require('electron');
+const path = require('path');
+
+function createWindow() {
+  const win = new BrowserWindow({
+    width: 1200, height: 800,
+    webPreferences: { nodeIntegration: true, contextIsolation: false }
+  });
+  win.loadFile(path.join(__dirname, '../renderer/index.html')); // <- relativo ao pacote
+}
+app.whenReady().then(createWindow);
+
+4) package.json com preset “Portable”
+
+Use este modelo (substitui/une com o seu). O essencial é:
+
+"main": "src/main/main.js"
+
+scripts.build chamando portable
+
+bloco "build" com alvo portable (Windows)
+
+{
+  "name": "estamparia_erp",
+  "productName": "Estamparia ERP",
+  "version": "1.0.0",
+  "description": "ERP desktop para estamparia.",
+  "main": "src/main/main.js",
+  "author": "",
+  "license": "ISC",
+
+  "scripts": {
+    "start": "electron ./src/main/main.js",
+    "build": "electron-builder -w portable",            // <— PORTABLE aqui
+    "build:installer": "electron-builder -w nsis",
+    "build:zip": "electron-builder -w zip",
+    "build:all": "electron-builder -w portable,nsis,zip"
+  },
+
+  "build": {
+    "appId": "com.suaempresa.estampariaerp",
+    "productName": "Estamparia ERP",
+    "directories": { "output": "dist" },
+    "asar": true,
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      ".env"     // se seu app lê .env em produção
+    ],
+    "win": {
+      "icon": "assets/icon.ico",
+      "artifactName": "${productName} ${version} ${arch}.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName} ${version} Portable.${ext}"
+    }
+  },
+
+  "devDependencies": {
+    "electron": "^37.4.0",
+    "electron-builder": "^26.0.12"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.2",
+    "pg": "^8.16.3"
+  }
+}
+
+
+Observações
+
+asar: true compacta a app em app.asar.
+
+extraResources copia arquivos externos (como .env) para resources/.
+
+Se não tiver ícone, o builder usa o padrão do Electron.
+
+5) Teste local
+npm start
+
+
+Se sua lógica diferencia NODE_ENV, teste também:
+
+set NODE_ENV=production && npm start   # Windows cmd
+# ou
+$env:NODE_ENV="production"; npm start  # PowerShell
+
+6) Gerar o Portable
+npm run build
+
+
+Saída: dist/Estamparia ERP 1.0.0 Portable.exe
+É um único arquivo que executa sem instalar. (O builder também costuma gerar dist/win-unpacked/ — útil para testes.)
+
+7) Distribuição
+
+Envie o .exe portable.
+
+Se preferir “sem único arquivo”, você pode zipar a pasta win-unpacked.
+
+Reaproveitando em outros projetos
+
+Copie o bloco scripts e o bloco build do package.json acima.
+
+Garanta que o "main" aponte para seu src/main/main.js.
+
+Ajuste somente:
+
+appId, productName, description.
+
+Ícone em win.icon (ou remova).
+
+Recursos extras em extraResources (ex.: .env, assets/, etc.).
+
+npm run build → gera o portable.
+
+Troubleshooting rápido
+
+Tela branca em produção: verifique loadFile(path.join(__dirname, '../renderer/index.html')) e se os arquivos estão dentro de src/ e listados em "files".
+
+“module not found”: a dependência usada pelo main precisa estar em "dependencies" (não em dev).
+
+.env não lido em produção: mantenha extraResources: [".env"] e use require('dotenv').config().
+
+Aviso “default icon is used”: inclua assets/icon.ico ou remova o campo icon temporariamente.
+
+Extensões úteis
+
+Instalador opcional: npm run build:installer (NSIS).
+
+ZIP opcional: npm run build:zip.
+
+macOS/Linux (equivalentes “portáveis”):
+
+macOS: use zip ou dmg (não existe “portable .app” único).
+
+Linux: use AppImage (alvo -l AppImage).
+
+Com esse checklist você consegue repetir o fluxo “Portable” em qualquer projeto Electron de forma consistente. Se quiser, eu te entrego um template zipado com essa estrutura mínima para você clonar nos próximos projetos.

@@ -1,24 +1,73 @@
 {
   "name": "estamparia_erp",
+  "productName": "Estamparia ERP",
   "version": "1.0.0",
-  "main": "index.js",
+  "description": "ERP desktop para estamparia (Electron + Node.js + PostgreSQL).",
+  "main": "src/main/main.js",
+  "author": "",
+  "license": "ISC",
+
   "scripts": {
-    "start": "electron ./src/main/main.js"
+    "start": "electron ./src/main/main.js",
+    "pack": "electron-builder --dir",
+    "build": "electron-builder -w portable",
+    "build:installer": "electron-builder -w nsis",
+    "build:zip": "electron-builder -w zip",
+    "build:all": "electron-builder -w portable,nsis,zip"
   },
+
+  "build": {
+    "appId": "com.suaempresa.estampariaerp",
+    "productName": "Estamparia ERP",
+    "directories": {
+      "output": "dist"
+    },
+    "asar": true,
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      ".env"
+    ],
+
+    "win": {
+      "icon": "assets/icon.ico",
+      "artifactName": "${productName} ${version} ${arch}.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName} ${version} Portable.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "artifactName": "${productName} Setup ${version}.${ext}"
+    },
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "assets/icon.icns",
+      "target": ["dmg", "zip"]
+    },
+    "linux": {
+      "icon": "assets/icons",
+      "target": ["AppImage", "deb"]
+    }
+  },
+
   "repository": {
     "type": "git",
     "url": "git+https://github.com/BrasserTech/ESTAMPARIA_erp.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "bugs": {
     "url": "https://github.com/BrasserTech/ESTAMPARIA_erp/issues"
   },
   "homepage": "https://github.com/BrasserTech/ESTAMPARIA_erp#readme",
+
   "devDependencies": {
     "@types/node": "^24.3.0",
     "electron": "^37.4.0",
+    "electron-builder": "^26.0.12",
     "eslint": "^9.34.0",
     "prettier": "^3.6.2",
     "ts-node": "^10.9.2",
@@ -106,5 +155,5 @@
     "yn": "^3.1.1",
     "yocto-queue": "^0.1.0"
   },
-  "description": ""
+  "keywords": []
 }
