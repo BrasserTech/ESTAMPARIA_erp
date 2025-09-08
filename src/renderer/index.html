@@ -11,7 +11,7 @@
 <body>
   <div id="app" class="app">
     <!-- ========= SIDEBAR ========= -->
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
       <div class="brand">
         <div class="logo">BT</div>
         <div class="brand-name">Estamparia ERP</div>
@@ -88,6 +88,15 @@
       </nav>
     </aside>
 
+    <!-- ===== Painel lateral de submenus (novo) ===== -->
+    <aside class="subpanel" id="subpanel">
+      <div class="subhead">
+        <span id="subpanel-title">Menu</span>
+        <button class="subclose" id="subpanel-close" title="Fechar">×</button>
+      </div>
+      <div class="slist" id="subpanel-body"></div>
+    </aside>
+
     <!-- Backdrop (fecha overlay no mobile) -->
     <div id="sidebar-backdrop" class="backdrop" aria-hidden="true"></div>
 
@@ -154,27 +163,80 @@
   <!-- Router -->
   <script src="router.js"></script>
 
-  <!-- Submenus (abre/fecha) + Mobile overlay control -->
+  <!-- ===== Submenus: painel lateral no desktop / inline no mobile ===== -->
   <script>
-    // Submenus simples
+    // elementos do painel
+    const appEl      = document.getElementById('app');
+    const subpanel   = document.getElementById('subpanel');
+    const spTitle    = document.getElementById('subpanel-title');
+    const spBody     = document.getElementById('subpanel-body');
+    const spCloseBtn = document.getElementById('subpanel-close');
+    const sidebarEl  = document.getElementById('sidebar');
+
+    const isMobile = () => window.innerWidth <= 980;
+
+    function closeSubpanel(){
+      appEl.classList.remove('subopen');
+      spBody.innerHTML = '';
+      document.querySelectorAll('.nav-item.active').forEach(n => n.classList.remove('active'));
+    }
+
+    function openSubpanel(triggerEl, templateEl){
+      if (!templateEl) return;
+      // título a partir do rótulo do botão
+      const t = triggerEl.querySelector('.label')?.textContent?.trim() || 'Menu';
+      spTitle.textContent = t;
+
+      // clona os links do template
+      spBody.innerHTML = '';
+      templateEl.querySelectorAll('a').forEach(a => {
+        const clone = a.cloneNode(true);
+        clone.addEventListener('click', () => closeSubpanel());
+        spBody.appendChild(clone);
+      });
+
+      // marca ativo e exibe painel
+      document.querySelectorAll('.nav-item.active').forEach(n => n.classList.remove('active'));
+      triggerEl.classList.add('active');
+      appEl.classList.add('subopen');
+    }
+
+    // Clique nos itens de topo
     document.addEventListener('click', (ev) => {
       const trigger = ev.target.closest('.nav-item[data-submenu]');
       if (!trigger) return;
+
       const id = trigger.getAttribute('data-submenu');
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.classList.toggle('open');
+      const tpl = document.getElementById(id);
+      if (!tpl) return;
+
+      // Mobile: mantém comportamento inline (abre dentro da própria sidebar)
+      if (isMobile()){
+        tpl.classList.toggle('open');
+        return;
+      }
+
+      // Desktop: painel lateral
+      const already = trigger.classList.contains('active') && appEl.classList.contains('subopen');
+      if (already) { closeSubpanel(); return; }
+      openSubpanel(trigger, tpl);
     });
 
-    // Rodapé com data
-    (function () {
-      const el = document.getElementById('footer-date');
-      const d = new Date();
-      const f = d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric', weekday:'long' });
-      if (el) el.textContent = f;
-    })();
+    // Fechamentos
+    spCloseBtn?.addEventListener('click', closeSubpanel);
+    document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') closeSubpanel(); });
 
-    // ===== Controle do overlay mobile (sem remover comportamento desktop) =====
+    // Fechar ao clicar fora
+    document.addEventListener('click', (ev) => {
+      if (!appEl.classList.contains('subopen')) return;
+      const insideSidebar = sidebarEl.contains(ev.target);
+      const insidePanel   = subpanel.contains(ev.target);
+      if (!insideSidebar && !insidePanel) closeSubpanel();
+    });
+  </script>
+
+  <!-- ===== Controle do overlay mobile (sem alterar desktop) ===== -->
+  <script>
     (function () {
       const app       = document.querySelector('.app');
       const toggleBtn = document.getElementById('sidebar-toggle');
@@ -185,8 +247,16 @@
 
       const isMobile = () => window.innerWidth <= 980;
 
-      function openOverlay(){ app.classList.add('mobile-open'); fab.classList.add('hide'); }
-      function closeOverlay(){ app.classList.remove('mobile-open'); fab.classList.remove('hide'); }
+      function openOverlay(){
+        // ao abrir overlay, garantimos que o painel lateral esteja fechado
+        app.classList.remove('subopen');
+        app.classList.add('mobile-open');
+        fab.classList.add('hide');
+      }
+      function closeOverlay(){
+        app.classList.remove('mobile-open');
+        fab.classList.remove('hide');
+      }
 
       // Hambúrguer: desktop = colapsa; mobile = overlay
       toggleBtn?.addEventListener('click', (e) => {
@@ -221,6 +291,14 @@
 
       // Estado inicial do FAB
       if (!isMobile()) fab?.classList.add('hide');
+
+      // Rodapé com data (mantido)
+      (function () {
+        const el = document.getElementById('footer-date');
+        const d = new Date();
+        const f = d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric', weekday:'long' });
+        if (el) el.textContent = f;
+      })();
     })();
   </script>
 </body>

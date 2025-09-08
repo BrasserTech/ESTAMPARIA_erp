@@ -3,6 +3,7 @@
 :root{
   --sidebar-w: 280px;
   --sidebar-w-collapsed: 80px;
+  --subpanel-w: 240px;            /* <<< NOVO: largura do painel lateral */
 }
 html,body,#app{height:100%}
 body{
@@ -37,7 +38,43 @@ body{
 }
 .app.collapsed .sidebar{ width:var(--sidebar-w-collapsed); }
 
-/* Conteúdo ocupa o restante e faz scroll */
+/* ========= Painel lateral de submenus (NOVO) ========= */
+.subpanel{
+  position:fixed;
+  top:0; bottom:0;
+  left:var(--sidebar-w);
+  width:var(--subpanel-w);
+  background:#f7faff;
+  border-right:1px solid #e4ecfb;
+  border-left:1px solid #e4ecfb;
+  display:none;
+  z-index:18; /* acima do conteúdo, abaixo da sidebar */
+}
+.app.subopen .subpanel{ display:flex; flex-direction:column; }
+.app.collapsed .subpanel{ left:var(--sidebar-w-collapsed); }
+
+.subpanel .subhead{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 14px;
+  font-weight:800; color:#1d2a44;
+  border-bottom:1px solid #e6eef9; background:#ffffffcc; backdrop-filter:blur(4px);
+}
+.subpanel .subclose{
+  width:28px;height:28px;border-radius:8px;border:1px solid #dfe6fb;background:#fff;
+  cursor:pointer; font-size:18px; line-height:24px; color:#274aa6;
+}
+.subpanel .subclose:hover{ filter:brightness(.97); }
+.slist{ padding:10px; display:flex; flex-direction:column; gap:8px; }
+.slist a{
+  display:flex; align-items:center; gap:8px;
+  background:#fff; color:#1e2a44; text-decoration:none;
+  border:1px solid #e6ecf5; border-radius:12px; padding:10px 12px;
+  transition:background .15s ease, transform .05s ease, border-color .15s ease;
+}
+.slist a:hover{ background:#eef4ff; border-color:#cddcff; }
+.slist a .icon{ width:16px;height:16px; }
+
+/* Ajuste do conteúdo quando o painel está aberto */
 .content{
   display:flex;
   flex-direction:column;
@@ -48,6 +85,14 @@ body{
   transition:margin-left .2s ease;
 }
 .app.collapsed .content{ margin-left:var(--sidebar-w-collapsed); }
+
+/* quando o painel abre, empurra o conteúdo */
+.app.subopen .content{
+  margin-left:calc(var(--sidebar-w) + var(--subpanel-w));
+}
+.app.collapsed.subopen .content{
+  margin-left:calc(var(--sidebar-w-collapsed) + var(--subpanel-w));
+}
 
 /* ================== Topbar / Footer ================== */
 .topbar{
@@ -110,7 +155,7 @@ h3{margin:8px 0 12px}
 .nav-item .caret{margin-left:auto;opacity:.92}
 .nav-item .icon{flex:0 0 18px}
 
-/* Submenus */
+/* Submenus inline (mantidos para mobile) */
 .submenu{margin:6px 0 6px 34px;border-left:2px dashed rgba(255,255,255,.25);padding-left:12px;display:none}
 .submenu.open{display:block}
 .submenu-link{display:flex;align-items:center;gap:8px;color:#eef4ff;text-decoration:none;padding:10px 8px;border-radius:10px;margin:6px 0}
@@ -207,6 +252,10 @@ h3{margin:8px 0 12px}
   /* Impede o “recolher” no mobile: usamos overlay */
   .app.collapsed .sidebar{ transform: translateX(-100%); }
   .app.collapsed.mobile-open .sidebar{ transform: translateX(0); }
+
+  /* Painel lateral não aparece no mobile (usamos submenu inline) */
+  .subpanel{ display:none !important; }
+  .app.subopen .content{ margin-left:0; }
 }
 
 /* Botão X (fechar) na sidebar – visível apenas em overlay mobile */

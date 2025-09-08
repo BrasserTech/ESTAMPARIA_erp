@@ -1,4 +1,7 @@
 // src/main/main.js
+// Nota: o painel lateral de submenus é puramente de UI (renderer).
+// Não é necessário alterar este arquivo para ele funcionar.
+
 require('dotenv').config();
 
 const { app, BrowserWindow, ipcMain } = require('electron');
@@ -155,8 +158,8 @@ ipcMain.handle('servicos:criar', async (_e, s) => {
     (chaveemp ? Number(chaveemp) : null),
     (obs ? String(obs).trim() : null),
     (categoria ? Number(categoria) : 1),
-    (validade || null),
-    (prazoentrega || null)
+    (validade ? validade : null),
+    (prazoentrega ? prazoentrega : null)
   ];
 
   const { rows } = await db.query(sql, params);
@@ -301,8 +304,8 @@ ipcMain.handle('lookup:search', async (_e, payload = {}) => {
 ipcMain.handle('dashboard:kpis', async (_e, { meses = 6 } = {}) => {
   const months = Math.max(1, parseInt(meses, 10) || 6);
   const { rows: rNow } = await db.query('SELECT NOW() AS now');
-  const now = new Date(rNow[0].now);
-  const start = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
+  theNow = new Date(rNow[0].now);
+  const start = new Date(theNow.getFullYear(), theNow.getMonth() - (months - 1), 1);
 
   const { rows: ent } = await db.query(
     `SELECT to_char(date_trunc('month', e.datahoracad), 'YYYY-MM') AS ym,
