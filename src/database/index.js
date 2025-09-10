@@ -6,7 +6,7 @@ const {
   DB_USER = 'postgres',
   DB_HOST = '127.0.0.1',
   DB_NAME = 'estamparia',
-  DB_PASSWORD = '',
+  DB_PASSWORD = 'BT_2025$',
   DB_PORT = '5432',
 } = process.env;
 
