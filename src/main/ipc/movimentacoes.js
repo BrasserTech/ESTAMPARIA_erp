@@ -1,29 +1,12 @@
 // src/main/ipc/movimentacoes.js
 const { ipcMain, dialog, BrowserWindow } = require('electron');
-const { Pool } = require('pg');
-require('dotenv').config();
+const db = require('../../database'); // usa o pool/consulta centralizados
+const { pool, query } = db;
 
-/* ---------------- DB POOL ---------------- */
-function buildPoolConfig() {
-  if (process.env.DATABASE_URL) {
-    return { connectionString: process.env.DATABASE_URL };
-  }
-  const cfg = {
-    host: process.env.PGHOST || '127.0.0.1',
-    port: process.env.PGPORT ? Number(process.env.PGPORT) : 5432,
-    database: process.env.PGDATABASE || 'estamparia',
-    user: process.env.PGUSER || 'postgres',
-    password: process.env.PGPASSWORD || '',
-  };
-  return cfg;
-}
-const pool = new Pool(buildPoolConfig());
-
+/* ---------------- CONEXÃO / SAÚDE ---------------- */
 async function pingOrExplain() {
   try {
-    const c = await pool.connect();
-    await c.query('SELECT 1');
-    c.release();
+    await query('SELECT 1');
   } catch (err) {
     const msg =
       'Falha ao conectar no PostgreSQL.\n' +
@@ -37,9 +20,10 @@ async function pingOrExplain() {
     throw err;
   }
 }
+// valida ao carregar o módulo (sem travar a UI)
 pingOrExplain().catch(() => {});
 
-/* Aux de transação */
+/* ---------------- AUXILIAR: TRANSAÇÃO ---------------- */
 async function withTx(work) {
   const client = await pool.connect();
   try {
@@ -48,7 +32,7 @@ async function withTx(work) {
     await client.query('COMMIT');
     return res;
   } catch (e) {
-    await client.query('ROLLBACK');
+    try { await client.query('ROLLBACK'); } catch {}
     throw e;
   } finally {
     client.release();
@@ -62,7 +46,11 @@ ipcMain.handle('movs:entrada:ensure', async (_e, { chaveclifor, ativo = 1 }) => 
   if (!chaveclifor) throw new Error('chaveclifor obrigatório.');
   return withTx(async (cx) => {
     const pick = await cx.query(
-      `SELECT chave FROM entradas WHERE ativo = 1 AND chaveclifor = $1 ORDER BY chave DESC LIMIT 1`,
+      `SELECT chave
+         FROM entradas
+        WHERE ativo = 1 AND chaveclifor = $1
+        ORDER BY chave DESC
+        LIMIT 1`,
       [chaveclifor]
     );
     if (pick.rowCount > 0) return { chave: pick.rows[0].chave };
@@ -84,7 +72,7 @@ ipcMain.handle('movs:entrada:addProd', async (_e, { chaveentrada, chaveproduto, 
   if (!(qtde > 0)) throw new Error('qtde inválida.');
   if (valorunit == null || valorunit < 0) throw new Error('valorunit inválido.');
 
-  const { rows } = await pool.query(
+  const { rows } = await query(
     `INSERT INTO itementradaprod (ativo, chaveentrada, chaveproduto, qtde, valorunit)
      VALUES (1, $1, $2, $3, $4)
      RETURNING chave, valorunit, valortotal`,
@@ -95,7 +83,7 @@ ipcMain.handle('movs:entrada:addProd', async (_e, { chaveentrada, chaveproduto, 
 
 ipcMain.handle('movs:entrada:remProd', async (_e, { itementradaprod_chave }) => {
   if (!itementradaprod_chave) throw new Error('chave do item obrigatória.');
-  await pool.query(`DELETE FROM itementradaprod WHERE chave = $1`, [itementradaprod_chave]);
+  await query(`DELETE FROM itementradaprod WHERE chave = $1`, [itementradaprod_chave]);
   return { ok: true };
 });
 
@@ -106,7 +94,7 @@ ipcMain.handle('movs:entrada:addServ', async (_e, { chaveentrada, chaveservico, 
   if (!(qtde > 0)) throw new Error('qtde inválida.');
   if (valorunit == null || valorunit < 0) throw new Error('valorunit inválido.');
 
-  const { rows } = await pool.query(
+  const { rows } = await query(
     `INSERT INTO itementradaserv (ativo, chaveentrada, chaveservico, qtde, valorunit)
      VALUES (1, $1, $2, $3, $4)
      RETURNING chave, valorunit, valortotal`,
@@ -117,7 +105,7 @@ ipcMain.handle('movs:entrada:addServ', async (_e, { chaveentrada, chaveservico, 
 
 ipcMain.handle('movs:entrada:remServ', async (_e, { itementradaserv_chave }) => {
   if (!itementradaserv_chave) throw new Error('chave do item obrigatória.');
-  await pool.query(`DELETE FROM itementradaserv WHERE chave = $1`, [itementradaserv_chave]);
+  await query(`DELETE FROM itementradaserv WHERE chave = $1`, [itementradaserv_chave]);
   return { ok: true };
 });
 
@@ -127,17 +115,24 @@ ipcMain.handle('movs:entrada:finalizar', async (_e, { chaveentrada, chaveclifor,
   if (!chaveclifor) throw new Error('chaveclifor obrigatório.');
 
   return withTx(async (cx) => {
-    const hdr = await cx.query(`SELECT chave, chaveclifor FROM entradas WHERE chave=$1`, [chaveentrada]);
+    const hdr = await cx.query(
+      `SELECT chave, chaveclifor FROM entradas WHERE chave = $1`,
+      [chaveentrada]
+    );
     if (hdr.rowCount === 0) throw new Error('Entrada não encontrada.');
     if (Number(hdr.rows[0].chaveclifor) !== Number(chaveclifor))
       throw new Error('Cabeçalho não pertence ao fornecedor informado.');
 
     const totProd = await cx.query(
-      `SELECT COALESCE(SUM(valortotal), 0) AS total FROM itementradaprod WHERE chaveentrada = $1`,
+      `SELECT COALESCE(SUM(valortotal), 0) AS total
+         FROM itementradaprod
+        WHERE chaveentrada = $1`,
       [chaveentrada]
     );
     const totServ = await cx.query(
-      `SELECT COALESCE(SUM(valortotal), 0) AS total FROM itementradaserv WHERE chaveentrada = $1`,
+      `SELECT COALESCE(SUM(valortotal), 0) AS total
+         FROM itementradaserv
+        WHERE chaveentrada = $1`,
       [chaveentrada]
     );
     const total = Number(totProd.rows[0].total || 0) + Number(totServ.rows[0].total || 0);
@@ -157,13 +152,17 @@ ipcMain.handle('movs:entrada:finalizar', async (_e, { chaveentrada, chaveclifor,
 });
 
 /* ===========================================================
-   SAÍDAS (cabeçalho + itens)  —  ADIÇÃO
+   SAÍDAS (cabeçalho + itens)
    =========================================================== */
 ipcMain.handle('movs:saida:ensure', async (_e, { chaveclifor, ativo = 1 }) => {
   if (!chaveclifor) throw new Error('chaveclifor obrigatório.');
   return withTx(async (cx) => {
     const pick = await cx.query(
-      `SELECT chave FROM saidas WHERE ativo = 1 AND chaveclifor = $1 ORDER BY chave DESC LIMIT 1`,
+      `SELECT chave
+         FROM saidas
+        WHERE ativo = 1 AND chaveclifor = $1
+        ORDER BY chave DESC
+        LIMIT 1`,
       [chaveclifor]
     );
     if (pick.rowCount > 0) return { chave: pick.rows[0].chave };
@@ -184,7 +183,7 @@ ipcMain.handle('movs:saida:addProd', async (_e, { chavesaida, chaveproduto, qtde
   if (!(qtde > 0)) throw new Error('qtde inválida.');
   if (valorunit == null || valorunit < 0) throw new Error('valorunit inválido.');
 
-  const { rows } = await pool.query(
+  const { rows } = await query(
     `INSERT INTO itemsaidaprod (ativo, chavesaida, chaveproduto, qtde, valorunit)
      VALUES (1, $1, $2, $3, $4)
      RETURNING chave, valorunit, valortotal`,
@@ -195,7 +194,7 @@ ipcMain.handle('movs:saida:addProd', async (_e, { chavesaida, chaveproduto, qtde
 
 ipcMain.handle('movs:saida:remProd', async (_e, { itemsaidaprod_chave }) => {
   if (!itemsaidaprod_chave) throw new Error('chave do item obrigatória.');
-  await pool.query(`DELETE FROM itemsaidaprod WHERE chave = $1`, [itemsaidaprod_chave]);
+  await query(`DELETE FROM itemsaidaprod WHERE chave = $1`, [itemsaidaprod_chave]);
   return { ok: true };
 });
 
@@ -205,7 +204,7 @@ ipcMain.handle('movs:saida:addServ', async (_e, { chavesaida, chaveservico, qtde
   if (!(qtde > 0)) throw new Error('qtde inválida.');
   if (valorunit == null || valorunit < 0) throw new Error('valorunit inválido.');
 
-  const { rows } = await pool.query(
+  const { rows } = await query(
     `INSERT INTO itemsaidaserv (ativo, chavesaida, chaveservico, qtde, valorunit)
      VALUES (1, $1, $2, $3, $4)
      RETURNING chave, valorunit, valortotal`,
@@ -216,7 +215,7 @@ ipcMain.handle('movs:saida:addServ', async (_e, { chavesaida, chaveservico, qtde
 
 ipcMain.handle('movs:saida:remServ', async (_e, { itemsaidaserv_chave }) => {
   if (!itemsaidaserv_chave) throw new Error('chave do item obrigatória.');
-  await pool.query(`DELETE FROM itemsaidaserv WHERE chave = $1`, [itemsaidaserv_chave]);
+  await query(`DELETE FROM itemsaidaserv WHERE chave = $1`, [itemsaidaserv_chave]);
   return { ok: true };
 });
 
@@ -225,17 +224,24 @@ ipcMain.handle('movs:saida:finalizar', async (_e, { chavesaida, chaveclifor, obs
   if (!chaveclifor) throw new Error('chaveclifor obrigatório.');
 
   return withTx(async (cx) => {
-    const hdr = await cx.query(`SELECT chave, chaveclifor FROM saidas WHERE chave=$1`, [chavesaida]);
+    const hdr = await cx.query(
+      `SELECT chave, chaveclifor FROM saidas WHERE chave = $1`,
+      [chavesaida]
+    );
     if (hdr.rowCount === 0) throw new Error('Saída não encontrada.');
     if (Number(hdr.rows[0].chaveclifor) !== Number(chaveclifor))
       throw new Error('Cabeçalho não pertence ao cliente informado.');
 
     const totProd = await cx.query(
-      `SELECT COALESCE(SUM(valortotal), 0) AS total FROM itemsaidaprod WHERE chavesaida = $1`,
+      `SELECT COALESCE(SUM(valortotal), 0) AS total
+         FROM itemsaidaprod
+        WHERE chavesaida = $1`,
       [chavesaida]
     );
     const totServ = await cx.query(
-      `SELECT COALESCE(SUM(valortotal), 0) AS total FROM itemsaidaserv WHERE chavesaida = $1`,
+      `SELECT COALESCE(SUM(valortotal), 0) AS total
+         FROM itemsaidaserv
+        WHERE chavesaida = $1`,
       [chavesaida]
     );
     const total = Number(totProd.rows[0].total || 0) + Number(totServ.rows[0].total || 0);
@@ -254,20 +260,16 @@ ipcMain.handle('movs:saida:finalizar', async (_e, { chavesaida, chaveclifor, obs
 });
 
 /* ===========================================================
-   RELATÓRIOS — ADIÇÃO
+   RELATÓRIOS — ADIÇÕES
    =========================================================== */
 
-/** 1) Entradas por período / fornecedor (lista + resumo por fornecedor) */
+/** 1) Entradas por período / fornecedor (lista + resumo) */
 ipcMain.handle('reports:entradasPorFornecedor', async (_e, { dtIni, dtFim, fornecedorId }) => {
-  // dtFim exclusivo (add 1 dia no renderer, se preferir)
   const params = [dtIni, dtFim];
   let where = `e.datahoracad >= $1 AND e.datahoracad < $2`;
-  if (fornecedorId) {
-    params.push(fornecedorId);
-    where += ` AND e.chaveclifor = $${params.length}`;
-  }
+  if (fornecedorId) { params.push(fornecedorId); where += ` AND e.chaveclifor = $${params.length}`; }
 
-  const rows = await pool.query(
+  const rows = await query(
     `
     SELECT e.chave, e.datahoracad::timestamp AS data, c.nome AS fornecedor, e.total
       FROM entradas e
@@ -278,7 +280,7 @@ ipcMain.handle('reports:entradasPorFornecedor', async (_e, { dtIni, dtFim, forne
     params
   );
 
-  const resumo = await pool.query(
+  const resumo = await query(
     `
     SELECT c.nome AS fornecedor, SUM(e.total) AS total
       FROM entradas e
@@ -293,18 +295,15 @@ ipcMain.handle('reports:entradasPorFornecedor', async (_e, { dtIni, dtFim, forne
   return { rows: rows.rows, resumo: resumo.rows };
 });
 
-/** 2) Saídas por período / cliente (lista + resumo por cliente) */
+/** 2) Saídas por período / cliente (lista + resumo) */
 ipcMain.handle('reports:saidasPorCliente', async (_e, { dtIni, dtFim, clienteId }) => {
   const params = [dtIni, dtFim];
   let where = `s.datahoracad >= $1 AND s.datahoracad < $2`;
-  if (clienteId) {
-    params.push(clienteId);
-    where += ` AND s.chaveclifor = $${params.length}`;
-  }
+  if (clienteId) { params.push(clienteId); where += ` AND s.chaveclifor = $${params.length}`; }
 
-  const rows = await pool.query(
+  const rows = await query(
     `
-    SELECT s.chave, s.datahoracad::timestamp AS data, c.nome AS cliente, s.total
+    SELECT s.chave, s.datahoraCad::timestamp AS data, c.nome AS cliente, s.total
       FROM saidas s
       JOIN clifor c ON c.chave = s.chaveclifor
      WHERE ${where}
@@ -313,7 +312,7 @@ ipcMain.handle('reports:saidasPorCliente', async (_e, { dtIni, dtFim, clienteId 
     params
   );
 
-  const resumo = await pool.query(
+  const resumo = await query(
     `
     SELECT c.nome AS cliente, SUM(s.total) AS total
       FROM saidas s
@@ -328,14 +327,11 @@ ipcMain.handle('reports:saidasPorCliente', async (_e, { dtIni, dtFim, clienteId 
   return { rows: rows.rows, resumo: resumo.rows };
 });
 
-/** 3) Movimento de Produtos (entradas x saídas) por período e empresa (opcional) */
+/** 3) Movimento de Produtos (entradas x saídas) */
 ipcMain.handle('reports:movProdutos', async (_e, { dtIni, dtFim, empresaId }) => {
   const paramsBase = [dtIni, dtFim];
   const clausesProd = [];
-  if (empresaId) {
-    paramsBase.push(empresaId);
-    clausesProd.push(`p.chaveemp = $${paramsBase.length}`);
-  }
+  if (empresaId) { paramsBase.push(empresaId); clausesProd.push(`p.chaveemp = $${paramsBase.length}`); }
 
   const sql = `
     WITH en AS (
@@ -365,19 +361,13 @@ ipcMain.handle('reports:movProdutos', async (_e, { dtIni, dtFim, empresaId }) =>
        ${clausesProd.length ? `AND ${clausesProd.join(' AND ')}` : ''}
      ORDER BY p.nome
   `;
-  const rows = await pool.query(sql, paramsBase);
+  const rows = await query(sql, paramsBase);
   return { rows: rows.rows };
 });
 
 /** 4) Faturamento mensal por empresa (Produtos + Serviços) */
 ipcMain.handle('reports:faturamentoMensal', async (_e, { dtIni, dtFim, empresaId }) => {
   const params = [dtIni, dtFim];
-  let filtroEmp = '';
-  if (empresaId) {
-    params.push(empresaId);
-    filtroEmp = `AND (p.chaveemp = $3 OR sv.chaveemp = $3)`;
-  }
-
   const sql = `
     WITH base AS (
       SELECT s.datahoracad::date AS dia, i.valortotal AS total, p.chaveemp AS emp
@@ -398,12 +388,11 @@ ipcMain.handle('reports:faturamentoMensal', async (_e, { dtIni, dtFim, empresaId
            SUM(b.total) AS total
       FROM base b
       LEFT JOIN empresa e ON e.chave = b.emp
-     WHERE 1=1
-       ${empresaId ? 'AND b.emp = $3' : ''}
      GROUP BY 1,2,3
      ORDER BY 1, 3
   `;
-  const rows = await pool.query(sql, params);
+  if (empresaId) params.push(empresaId);
+  const rows = await query(sql.replace('GROUP BY 1,2,3', empresaId ? 'WHERE b.emp = $3 GROUP BY 1,2,3' : 'GROUP BY 1,2,3'), params);
   return { rows: rows.rows };
 });
 
@@ -414,7 +403,7 @@ ipcMain.handle('consulta:entradas:listar', async (_e, { dtIni, dtFim, fornecedor
   if (fornecedorId) { params.push(fornecedorId); where += ` AND e.chaveclifor = $${params.length}`; }
   if (ativo)        { params.push(ativo);        where += ` AND e.ativo = $${params.length}`; }
 
-  const rows = await pool.query(
+  const rows = await query(
     `
     SELECT e.chave, e.datahoracad AS data, e.total, e.ativo,
            c.nome AS fornecedor
@@ -430,7 +419,7 @@ ipcMain.handle('consulta:entradas:listar', async (_e, { dtIni, dtFim, fornecedor
 
 ipcMain.handle('consulta:entradas:itens', async (_e, { chaveentrada }) => {
   if (!chaveentrada) throw new Error('chaveentrada obrigatório.');
-  const { rows } = await pool.query(
+  const { rows } = await query(
     `
     SELECT 'PROD' AS tipo, p.nome AS item, i.qtde, i.valorunit, i.valortotal
       FROM itementradaprod i
@@ -453,9 +442,9 @@ ipcMain.handle('consulta:saidas:listar', async (_e, { dtIni, dtFim, clienteId, a
   const params = [dtIni, dtFim];
   let where = `s.datahoracad >= $1 AND s.datahoracad < $2`;
   if (clienteId)  { params.push(clienteId); where += ` AND s.chaveclifor = $${params.length}`; }
-  if (ativo)      { params.push(ativo);     where += ` AND s.ativo = $${params.length}`; } // se não tiver col "ativo" em saidas, remova esta linha
+  if (ativo)      { params.push(ativo);     where += ` AND s.ativo = $${params.length}`; }
 
-  const rows = await pool.query(
+  const rows = await query(
     `
     SELECT s.chave, s.datahoracad AS data, s.total, s.ativo,
            c.nome AS cliente
@@ -471,7 +460,7 @@ ipcMain.handle('consulta:saidas:listar', async (_e, { dtIni, dtFim, clienteId, a
 
 ipcMain.handle('consulta:saidas:itens', async (_e, { chavesaida }) => {
   if (!chavesaida) throw new Error('chavesaida obrigatório.');
-  const { rows } = await pool.query(
+  const { rows } = await query(
     `
     SELECT 'PROD' AS tipo, p.nome AS item, i.qtde, i.valorunit, i.valortotal
       FROM itemsaidaprod i
@@ -489,23 +478,10 @@ ipcMain.handle('consulta:saidas:itens', async (_e, { chavesaida }) => {
   return { rows };
 });
 
-// ===================== RELATÓRIOS (apenas adições) =====================
-/**
- * Filtros esperados (todos opcionais):
- * {
- *   dtini: '2025-01-01', dtfim: '2025-01-31',
- *   cliforId: 123,           // cliente ou fornecedor, conforme o relatório
- *   produtoId: 45,           // filtra itens de produto
- *   servicoId: 9,            // filtra itens de serviço
- *   limit: 20                // ranking
- * }
- *
- * Observação: usamos datahoraalt do cabeçalho (entradas/saidas) para o período.
- */
+/* ===================== RELATÓRIOS: GERAIS ===================== */
 
 const fmtDate = (d) => (d ? new Date(d) : null);
 
-/** LUCRO MENSAL: vendas(saídas) - compras(entradas), agrupado por AAAA-MM */
 ipcMain.handle('reports:lucroMensal', async (_e, raw) => {
   const p = Object.assign(
     { dtini: null, dtfim: null, cliforId: null, produtoId: null, servicoId: null },
@@ -584,14 +560,11 @@ ipcMain.handle('reports:lucroMensal', async (_e, raw) => {
     ORDER BY m.ym;
   `;
 
-  const { rows: rowsEntr } = await pool.query(qEntradas, params);
-  const { rows: rowsSaid } = await pool.query(qSaidas, params);
+  const { rows: rowsEntr } = await query(qEntradas, params);
+  const { rows: rowsSaid } = await query(qSaidas, params);
 
-  // Merge por ym
   const map = new Map();
-  rowsEntr.forEach(r => {
-    map.set(r.ym, { ym: r.ym, compras: Number(r.compras || 0), vendas: 0 });
-  });
+  rowsEntr.forEach(r => { map.set(r.ym, { ym: r.ym, compras: Number(r.compras || 0), vendas: 0 }); });
   rowsSaid.forEach(r => {
     const ex = map.get(r.ym) || { ym: r.ym, compras: 0, vendas: 0 };
     ex.vendas = Number(r.vendas || 0);
@@ -617,7 +590,6 @@ ipcMain.handle('reports:lucroMensal', async (_e, raw) => {
   return { rows: data, totais };
 });
 
-
 /** ENTRADAS DETALHADAS (prod + serv) */
 ipcMain.handle('reports:entradasDetalhe', async (_e, raw) => {
   const p = Object.assign({ dtini:null, dtfim:null, cliforId:null, produtoId:null, servicoId:null }, raw || {});
@@ -629,29 +601,28 @@ ipcMain.handle('reports:entradasDetalhe', async (_e, raw) => {
     SELECT e.chave AS mov, e.datahoraalt::date AS data, e.chaveclifor AS clifor,
            'PROD' AS tipo, ep.chaveproduto AS item_id,
            ep.qtde, ep.valorunit, ep.valortotal
-    FROM entradas e
-    JOIN itementradaprod ep ON ep.chaveentrada = e.chave
-    WHERE e.ativo = 2 AND e.datahoraalt BETWEEN $1 AND $2
-      AND ($3::int IS NULL OR e.chaveclifor = $3)
-      AND ($4::int IS NULL OR ep.chaveproduto = $4)
+      FROM entradas e
+      JOIN itementradaprod ep ON ep.chaveentrada = e.chave
+     WHERE e.ativo = 2 AND e.datahoraalt BETWEEN $1 AND $2
+       AND ($3::int IS NULL OR e.chaveclifor = $3)
+       AND ($4::int IS NULL OR ep.chaveproduto = $4)
 
     UNION ALL
 
     SELECT e.chave AS mov, e.datahoraalt::date AS data, e.chaveclifor AS clifor,
            'SERV' AS tipo, es.chaveservico AS item_id,
            es.qtde, es.valorunit, es.valortotal
-    FROM entradas e
-    JOIN itementradaserv es ON es.chaveentrada = e.chave
-    WHERE e.ativo = 2 AND e.datahoraalt BETWEEN $1 AND $2
-      AND ($3::int IS NULL OR e.chaveclifor = $3)
-      AND ($5::int IS NULL OR es.chaveservico = $5)
+      FROM entradas e
+      JOIN itementradaserv es ON es.chaveentrada = e.chave
+     WHERE e.ativo = 2 AND e.datahoraalt BETWEEN $1 AND $2
+       AND ($3::int IS NULL OR e.chaveclifor = $3)
+       AND ($5::int IS NULL OR es.chaveservico = $5)
 
-    ORDER BY data, mov;
+     ORDER BY data, mov;
   `;
-  const { rows } = await pool.query(sql, params);
+  const { rows } = await query(sql, params);
   return { rows };
 });
-
 
 /** SAÍDAS DETALHADAS (prod + serv) */
 ipcMain.handle('reports:saidasDetalhe', async (_e, raw) => {
@@ -664,29 +635,28 @@ ipcMain.handle('reports:saidasDetalhe', async (_e, raw) => {
     SELECT s.chave AS mov, s.datahoraalt::date AS data, s.chaveclifor AS clifor,
            'PROD' AS tipo, sp.chaveproduto AS item_id,
            sp.qtde, sp.valorunit, sp.valortotal
-    FROM saidas s
-    JOIN itemsaidaprod sp ON sp.chavesaida = s.chave
-    WHERE s.ativo = 2 AND s.datahoraalt BETWEEN $1 AND $2
-      AND ($3::int IS NULL OR s.chaveclifor = $3)
-      AND ($4::int IS NULL OR sp.chaveproduto = $4)
+      FROM saidas s
+      JOIN itemsaidaprod sp ON sp.chavesaida = s.chave
+     WHERE s.ativo = 2 AND s.datahoraalt BETWEEN $1 AND $2
+       AND ($3::int IS NULL OR s.chaveclifor = $3)
+       AND ($4::int IS NULL OR sp.chaveproduto = $4)
 
     UNION ALL
 
     SELECT s.chave AS mov, s.datahoraalt::date AS data, s.chaveclifor AS clifor,
            'SERV' AS tipo, ss.chaveservico AS item_id,
            ss.qtde, ss.valorunit, ss.valortotal
-    FROM saidas s
-    JOIN itemsaidaserv ss ON ss.chavesaida = s.chave
-    WHERE s.ativo = 2 AND s.datahoraalt BETWEEN $1 AND $2
-      AND ($3::int IS NULL OR s.chaveclifor = $3)
-      AND ($5::int IS NULL OR ss.chaveservico = $5)
+      FROM saidas s
+      JOIN itemsaidaserv ss ON ss.chavesaida = s.chave
+     WHERE s.ativo = 2 AND s.datahoraalt BETWEEN $1 AND $2
+       AND ($3::int IS NULL OR s.chaveclifor = $3)
+       AND ($5::int IS NULL OR ss.chaveservico = $5)
 
-    ORDER BY data, mov;
+     ORDER BY data, mov;
   `;
-  const { rows } = await pool.query(sql, params);
+  const { rows } = await query(sql, params);
   return { rows };
 });
-
 
 /** RANKING (top N) por produto/serviço em ENTRADAS ou SAÍDAS */
 ipcMain.handle('reports:ranking', async (_e, raw) => {
@@ -759,7 +729,7 @@ ipcMain.handle('reports:ranking', async (_e, raw) => {
     }
   }
 
-  const { rows } = await pool.query(sql, params);
+  const { rows } = await query(sql, params);
   return { rows };
 });
 

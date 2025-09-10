@@ -1,15 +1,30 @@
 // src/main/main.js
-// Nota: o painel lateral de submenus é puramente de UI (renderer).
-// Não é necessário alterar este arquivo para ele funcionar.
 
-require('dotenv').config();
+const path = require('path');
+const fs   = require('fs');
+
+// 1) Carrega .env ANTES de qualquer require que use DB.
+(function loadEnvEarly() {
+  const candidates = [
+    path.join(process.cwd(), '.env'),
+    path.join(process.execPath, '..', '.env'),
+    path.join(process.resourcesPath || '', '.env'),
+  ];
+  for (const p of candidates) {
+    try {
+      if (p && fs.existsSync(p)) {
+        require('dotenv').config({ path: p });
+        return;
+      }
+    } catch { /* ignore */ }
+  }
+  try { require('dotenv').config(); } catch { /* ignore */ }
+})();
 
 const { app, BrowserWindow, ipcMain } = require('electron');
-const path = require('path');
-const fs = require('fs');
-const db = require('../database'); // ../database/index.js
+const db = require('../database'); // usa o módulo único acima
 
-// >>> Mantido como você pediu: carrega os relatórios explicitamente
+// >>> Mantido: relatórios explícitos
 require('./ipc/relatorios');
 
 let mainWindow;
@@ -29,26 +44,35 @@ function createWindow() {
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
-app.on('ready', createWindow);
+app.on('ready', async () => {
+  // 2) (Opcional, mas recomendado) Valida conexão antes de abrir a UI.
+  try {
+    await db.query('SELECT 1');
+  } catch (e) {
+    console.error('[APP] Falha ao validar conexão inicial:', e);
+    // A UI de Configurações ainda pode permitir correção; seguimos abrindo.
+  }
+  createWindow();
+});
+
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 app.on('activate', () => { if (mainWindow === null) createWindow(); });
 
+// Tratadores de erros globais para log útil
+process.on('unhandledRejection', (r) => console.error('[UnhandledRejection]', r));
+process.on('uncaughtException', (e) => console.error('[UncaughtException]', e));
+
 /* ====== Info do app/usuário ====== */
 ipcMain.handle('app:info', async () => {
-  const user = process.env.APP_USER || 'Operador';
+  const user  = process.env.APP_USER || 'Operador';
   const email = process.env.APP_USER_EMAIL || '';
   return { version: app.getVersion(), user, user_email: email };
 });
 
 /* ====== DB utils ====== */
 ipcMain.handle('db:info', async () => {
-  const {
-    DB_HOST = '127.0.0.1',
-    DB_PORT = '5432',
-    DB_USER = 'postgres',
-    DB_NAME = 'estamparia'
-  } = process.env;
-  return { host: DB_HOST, port: Number(DB_PORT), user: DB_USER, database: DB_NAME };
+  const cfg = db.getConfig();
+  return { ...cfg }; // host, port, user, database
 });
 
 ipcMain.handle('db:ping', async () => {
@@ -113,7 +137,6 @@ ipcMain.handle('produtos:criar', async (_e, p) => {
   return rows[0];
 });
 
-// Exclusão de produtos (usado na consulta)
 ipcMain.handle('produtos:excluir', async (_e, where) => {
   if (where?.chave)         await db.query('DELETE FROM produtos WHERE chave = $1', [where.chave]);
   else if (where?.codigo)   await db.query('DELETE FROM produtos WHERE codigo = $1', [where.codigo]);
@@ -220,7 +243,7 @@ ipcMain.handle('clientes:criar', async (_e, c) => {
 });
 
 /* ===================================================================
-   LOOKUP / PESQUISA GENÉRICA (F8 / Lupa)
+   LOOKUP / PESQUISA GENÉRICA
    =================================================================== */
 ipcMain.handle('lookup:search', async (_e, payload = {}) => {
   const termRaw  = (payload.term ?? '');
@@ -298,132 +321,21 @@ ipcMain.handle('lookup:search', async (_e, payload = {}) => {
   }
 });
 
-/* ===================================================================
-   DASHBOARD
-   =================================================================== */
-ipcMain.handle('dashboard:kpis', async (_e, { meses = 6 } = {}) => {
-  const months = Math.max(1, parseInt(meses, 10) || 6);
-  const { rows: rNow } = await db.query('SELECT NOW() AS now');
-  theNow = new Date(rNow[0].now);
-  const start = new Date(theNow.getFullYear(), theNow.getMonth() - (months - 1), 1);
-
-  const { rows: ent } = await db.query(
-    `SELECT to_char(date_trunc('month', e.datahoracad), 'YYYY-MM') AS ym,
-            SUM(COALESCE(e.total,0)) AS total
-       FROM entradas e
-      WHERE e.datahoracad >= $1
-   GROUP BY 1
-   ORDER BY 1`,
-    [start]
-  );
-
-  const { rows: sai } = await db.query(
-    `SELECT to_char(date_trunc('month', s.datahoracad), 'YYYY-MM') AS ym,
-            SUM(COALESCE(s.total,0)) AS total
-       FROM saidas s
-      WHERE s.datahoracad >= $1
-   GROUP BY 1
-   ORDER BY 1`,
-    [start]
-  );
-
-  const labels = [];
-  {
-    const m = new Date(start);
-    for (let i = 0; i < months; i++) {
-      labels.push(`${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, '0')}`);
-      m.setMonth(m.getMonth() + 1);
-    }
-  }
-
-  const mapEnt = Object.fromEntries(ent.map(r => [r.ym, Number(r.total)]));
-  const mapSai = Object.fromEntries(sai.map(r => [r.ym, Number(r.total)]));
-  const entradas = labels.map(l => mapEnt[l] || 0);
-  const saidas   = labels.map(l => mapSai[l] || 0);
-
-  return {
-    labels,
-    entradas,
-    saidas,
-    totalEntradas: entradas.reduce((a,b)=>a+b,0),
-    totalSaidas:   saidas.reduce((a,b)=>a+b,0),
-  };
-});
-
-ipcMain.handle('dashboard:topclientes', async (_e, { meses = 6 } = {}) => {
-  const months = Math.max(1, parseInt(meses, 10) || 6);
-  const { rows: rNow } = await db.query('SELECT NOW() AS now');
-  const now = new Date(rNow[0].now);
-  const start = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
-
-  const { rows } = await db.query(
-    `SELECT COALESCE(c.nome,'(Sem cliente)') AS nome,
-            SUM(COALESCE(s.total,0)) AS total
-       FROM saidas s
-  LEFT JOIN clifor c ON c.chave = s.chaveclifor
-      WHERE s.datahoracad >= $1
-   GROUP BY 1
-   ORDER BY total DESC NULLS LAST
-      LIMIT 5`,
-    [start]
-  );
-
-  return {
-    labels: rows.map(r => r.nome),
-    values: rows.map(r => Number(r.total || 0)),
-  };
-});
-
-ipcMain.handle('dashboard:mix', async (_e, { meses = 6 } = {}) => {
-  const months = Math.max(1, parseInt(meses, 10) || 6);
-  const { rows: rNow } = await db.query('SELECT NOW() AS now');
-  const now = new Date(rNow[0].now);
-  const start = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
-
-  const { rows: rp } = await db.query(
-    `SELECT COUNT(*)::int AS qtd
-       FROM itemsaidaprod ip
-       JOIN saidas s ON s.chave = ip.chavesaida
-      WHERE s.datahoracad >= $1`,
-    [start]
-  );
-
-  const { rows: rs } = await db.query(
-    `SELECT COUNT(*)::int AS qtd
-       FROM itemsaidaserv isv
-       JOIN saidas s ON s.chave = isv.chavesaida
-      WHERE s.datahoracad >= $1`,
-    [start]
-  );
-
-  return {
-    produtos: Number(rp[0]?.qtd || 0),
-    servicos: Number(rs[0]?.qtd || 0),
-  };
-});
-
 /* ===========================================================
    AUTOLOAD de módulos IPC adicionais
-   (evita duplicar os que já estão neste arquivo ou no require acima)
    =========================================================== */
 const ipcDir = path.join(__dirname, 'ipc');
 if (fs.existsSync(ipcDir)) {
   const skip = new Set([
-    // estes já estão neste arquivo principal:
     'clientes.js',
     'produtos.js',
     'servicos.js',
-    // este já foi requerido no topo explicitamente:
     'relatorios.js',
   ]);
-
   fs.readdirSync(ipcDir)
     .filter(f => f.endsWith('.js') && !skip.has(f))
     .forEach(f => {
-      try {
-        require(path.join(ipcDir, f));
-      } catch (e) {
-        console.error('[IPC]', f, e);
-      }
+      try { require(path.join(ipcDir, f)); }
+      catch (e) { console.error('[IPC]', f, e); }
     });
 }
